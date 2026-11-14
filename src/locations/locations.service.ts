@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Clock } from '../clock/clock';
 import type { Location } from './location';
 import {
@@ -33,6 +33,8 @@ export type LocationResolution =
  */
 @Injectable()
 export class LocationsService {
+  private readonly logger = new Logger(LocationsService.name);
+
   constructor(
     private readonly repository: LocationsRepository,
     private readonly geocoding: OpenMeteoGeocodingClient,
@@ -97,7 +99,20 @@ export class LocationsService {
       fetchedAt,
       new Date(fetchedAt.getTime() + ttl),
     );
+    await this.purgeExpiredSearches(fetchedAt);
     return candidates;
+  }
+
+  /**
+   * Keeps the search cache bounded: each fresh fetch also removes a batch of
+   * expired searches. Best effort — a failed purge never fails the search.
+   */
+  private async purgeExpiredSearches(now: Date): Promise<void> {
+    try {
+      await this.repository.purgeExpiredSearches(now);
+    } catch (error) {
+      this.logger.warn(`Expired location searches were not purged: ${String(error)}`);
+    }
   }
 }
 

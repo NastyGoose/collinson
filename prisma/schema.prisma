@@ -48,6 +48,8 @@ model LocationSearch {
   results LocationSearchResult[]
 
   @@id([query, countryCode])
+  /// Serves the purge of expired searches.
+  @@index([expiresAt])
   @@map("location_searches")
 }
 

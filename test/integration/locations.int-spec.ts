@@ -10,6 +10,7 @@ import {
   InvalidLocationInputError,
 } from '../../src/locations/location.errors';
 import { LocationsModule } from '../../src/locations/locations.module';
+import { LocationsRepository } from '../../src/locations/locations.repository';
 import {
   LocationsService,
   SEARCH_EMPTY_TTL_MS,
@@ -72,6 +73,7 @@ describe('LocationsService with PostgreSQL', () => {
   let moduleRef: TestingModule;
   let service: LocationsService;
   let prisma: PrismaService;
+  let repository: LocationsRepository;
 
   async function createModule(): Promise<TestingModule> {
     const testingModule = await Test.createTestingModule({
@@ -113,6 +115,7 @@ describe('LocationsService with PostgreSQL', () => {
     moduleRef = await createModule();
     service = moduleRef.get(LocationsService);
     prisma = moduleRef.get(PrismaService);
+    repository = moduleRef.get(LocationsRepository);
   });
 
   afterAll(async () => {
@@ -335,6 +338,41 @@ describe('LocationsService with PostgreSQL', () => {
         '9004',
       ]);
       expect(await locationIds()).toHaveLength(5);
+    });
+  });
+
+  describe('expired search purge', () => {
+    it('removes expired searches and their results on the next fetch, keeping stored locations', async () => {
+      await service.search('Springfield'); // match: expires after 24 h
+      await service.search('Zzqxqxq'); // empty: expires after 1 h
+      clock.advance(2 * SEARCH_EMPTY_TTL_MS);
+      await service.search('Berlin', 'DE'); // fresh fetch triggers the purge
+
+      expect((await searchRows()).map((row) => row.query + '|' + row.country_code)).toEqual([
+        'berlin|DE',
+        'springfield|',
+      ]);
+
+      clock.advance(SEARCH_MATCH_TTL_MS);
+      await service.search('Zzqxqxq');
+
+      expect((await searchRows()).map((row) => row.query)).toEqual(['zzqxqxq']);
+      const orphanResults = await prisma.locationSearchResult.count();
+      expect(orphanResults).toBe(0);
+      await expect(service.resolve({ locationId: '4250542' })).resolves.toMatchObject({
+        kind: 'resolved',
+      });
+    });
+
+    it('deletes at most one batch per purge', async () => {
+      for (const city of ['Springfield', 'Berlin', 'Zzqxqxq']) {
+        await service.search(city);
+      }
+      const later = new Date(clock.now().getTime() + SEARCH_MATCH_TTL_MS);
+
+      await expect(repository.purgeExpiredSearches(later, 2)).resolves.toBe(2);
+      await expect(repository.purgeExpiredSearches(later, 2)).resolves.toBe(1);
+      expect(await searchRows()).toEqual([]);
     });
   });
 
