@@ -1,0 +1,118 @@
+type Query {
+  "Up to five candidates for a city, or an empty list when nothing matches. countryCode is an ISO 3166-1 alpha-2 filter."
+  locations(city: String!, countryCode: String): [Location!]!
+  "Ranks tomorrow and the following six local dates for each activity at one location."
+  activityForecast(input: ForecastInput!): ForecastResult!
+}
+
+"Exactly one of city or locationId. countryCode filters a city search only."
+input ForecastInput {
+  city: String
+  countryCode: String
+  locationId: ID
+}
+
+union ForecastResult = ActivityForecast | AmbiguousLocation | LocationNotFound
+
+type Location {
+  "Stable Open-Meteo geocoding ID; pass it as ForecastInput.locationId."
+  id: ID!
+  name: String!
+  country: String!
+  region: String
+  latitude: Float!
+  longitude: Float!
+  "IANA time zone name; every date in the forecast is local to it."
+  timezone: String!
+}
+
+"The city matched several places; repeat the query with one candidate's id."
+type AmbiguousLocation {
+  candidates: [Location!]!
+}
+
+type LocationNotFound {
+  message: String!
+}
+
+type ActivityForecast {
+  location: Location!
+  "First ranked local date (tomorrow), YYYY-MM-DD."
+  startDate: String!
+  "Last ranked local date, YYYY-MM-DD."
+  endDate: String!
+  scoringVersion: String!
+  "One group per activity, in Activity enum order, each with seven dates."
+  activities: [ActivityRanking!]!
+  "Atmospheric then marine."
+  sources: [SourceStatus!]!
+  attribution: String!
+}
+
+enum Activity {
+  SKIING
+  SURFING
+  OUTDOOR_SIGHTSEEING
+  INDOOR_SIGHTSEEING
+}
+
+type ActivityRanking {
+  activity: Activity!
+  "Ranked days first, then unavailable days by date."
+  days: [RankedDay!]!
+}
+
+enum DayAvailability {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum DayUnavailableCode {
+  ATMOSPHERIC_UNAVAILABLE
+  MARINE_UNAVAILABLE
+  MISSING_ATMOSPHERIC_INPUTS
+  MISSING_MARINE_INPUTS
+  INVALID_MARINE_GRID
+  MARINE_GRID_TOO_DISTANT
+}
+
+type RankedDay {
+  "Local date, YYYY-MM-DD."
+  date: String!
+  availability: DayAvailability!
+  "0 to 100; null when the day is unavailable."
+  score: Int
+  "1 for the best day; null when the day is unavailable."
+  rank: Int
+  reason: String!
+  unavailableCode: DayUnavailableCode
+}
+
+enum WeatherSource {
+  ATMOSPHERIC
+  MARINE
+}
+
+enum Freshness {
+  FRESH
+  STALE
+  UNAVAILABLE
+}
+
+enum SourceFailureCode {
+  TIMEOUT
+  UPSTREAM_FAILURE
+  RATE_LIMITED
+  INVALID_PAYLOAD
+  INSUFFICIENT_COVERAGE
+}
+
+type SourceStatus {
+  source: WeatherSource!
+  freshness: Freshness!
+  "UTC ISO timestamp of the snapshot in use; null when the source is unavailable."
+  fetchedAt: String
+  "Why the last refresh failed; null when the source is fresh."
+  failureCode: SourceFailureCode
+  reason: String
+}
