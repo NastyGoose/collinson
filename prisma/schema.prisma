@@ -1,0 +1,16 @@
+// Prisma schema for the Collinson activity forecast service.
+// The connection URL comes from prisma.config.ts (DATABASE_URL); the runtime client
+// connects through the @prisma/adapter-pg driver adapter in PrismaService.
+//
+// Domain tables arrive with their tickets: locations and search cache (ARC-45),
+// forecast snapshots (ARC-46). See docs/adr/0002-postgresql-prisma-persistence.md.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}

@@ -11,7 +11,59 @@ A backend assessment service. Given a city or town, it ranks the next seven days
 
 ## Status
 
-The repository baseline is set up. Application code begins with ARC-44 (bootstrap NestJS, PostgreSQL and Prisma). Setup, run and test commands, GraphQL examples, assumptions and Open-Meteo attribution will be documented here as those parts land.
+The service skeleton is in place (ARC-44): NestJS with a schema-first GraphQL endpoint, PostgreSQL through Docker Compose, Prisma with checked-in migrations, and unit, integration and E2E test tiers. The only query so far is `health`. Location resolution, forecast persistence, scoring and the full `activityForecast` contract arrive in ARC-45 to ARC-48.
+
+## Prerequisites
+
+- Node.js 24 or later, and npm
+- Docker with the Compose plugin, for the local PostgreSQL. To use an existing PostgreSQL instance instead, set the URLs in `.env` and skip `npm run db:up`.
+
+## Run locally
+
+```bash
+npm install                # also generates the Prisma Client
+cp .env.example .env       # PowerShell: Copy-Item .env.example .env
+npm run db:up              # starts PostgreSQL 17 and waits until it is healthy
+npm run db:migrate         # applies the checked-in migrations (prisma migrate deploy)
+npm run start              # GraphQL endpoint at http://localhost:3000/graphql
+```
+
+Smoke query, from a second terminal:
+
+```bash
+curl -s http://localhost:3000/graphql -H 'content-type: application/json' -d '{"query":"{ health { service database } }"}'
+```
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod http://localhost:3000/graphql -Method Post -ContentType 'application/json' -Body '{"query":"{ health { service database } }"}' | ConvertTo-Json -Depth 5
+```
+
+Expected response:
+
+```json
+{ "data": { "health": { "service": "UP", "database": "UP" } } }
+```
+
+`database` reads `DOWN` when PostgreSQL is unreachable; the endpoint itself keeps answering. Stop the app with Ctrl+C, which closes the Prisma connection pool. Stop PostgreSQL with `npm run db:down`; its data stays in the `collinson_postgres-data` volume.
+
+## Tests and checks
+
+```bash
+npm test                   # unit tests, no database
+npm run test:integration   # migrations against a fresh PostgreSQL database
+npm run test:e2e           # GraphQL over HTTP against a fresh PostgreSQL database
+npm run typecheck
+npm run lint
+npm run format:check
+```
+
+Integration and E2E runs never use the development database. Each run connects through `TEST_DATABASE_ADMIN_URL`, creates its own `collinson_test_*` database, applies the same checked-in migrations with `prisma migrate deploy` and drops the database afterwards. The role in that URL needs the `CREATEDB` privilege; the Compose role has it.
+
+## Database migrations
+
+Migrations live in `prisma/migrations` and are applied with `npm run db:migrate`. After changing `prisma/schema.prisma`, create the next migration with `npm run db:migrate:dev -- --name <change>` and commit the generated folder. `npm run db:status` compares a database with the migration history.
 
 ## Project documents
 

@@ -31,3 +31,6 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Generated Prisma Client (rebuilt by `npm install` / `npm run prisma:generate`)
+/src/generated/
