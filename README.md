@@ -13,7 +13,7 @@ A backend assessment service. Given a city or town, it ranks the next seven days
 
 The service skeleton is in place (ARC-44): NestJS with a schema-first GraphQL endpoint, PostgreSQL through Docker Compose, Prisma with checked-in migrations, and unit, integration and E2E test tiers. The only query so far is `health`.
 
-Location resolution (ARC-45) is implemented as a service, not yet exposed over GraphQL. It geocodes a city through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api), stores locations under their stable Open-Meteo IDs, caches searches by normalized city and country filter (24 hours for matches, one hour for a genuine no-match, provider failures never cached) and resolves a stored ID without geocoding. Forecast persistence, scoring and the GraphQL `locations` and `activityForecast` queries arrive in ARC-46 to ARC-48.
+Location resolution (ARC-45) is implemented as a service, not yet exposed over GraphQL. It geocodes a city through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api), stores locations under their stable Open-Meteo IDs, caches searches by normalized city and country filter (24 hours for matches, one hour for a genuine no-match, provider failures never cached, expired entries purged on later fetches) and resolves a stored ID without geocoding. Forecast persistence, scoring and the GraphQL `locations` and `activityForecast` queries arrive in ARC-46 to ARC-48.
 
 ## Prerequisites
 
