@@ -3,7 +3,13 @@ import type { HttpFetch } from './http-fetch';
 
 /** Why an upstream JSON request failed, before an adapter maps it to its own error. */
 export type UpstreamFailureKind =
-  'TIMEOUT' | 'NETWORK' | 'RATE_LIMITED' | 'HTTP_ERROR' | 'INVALID_JSON';
+  'TIMEOUT' | 'NETWORK' | 'RATE_LIMITED' | 'HTTP_ERROR' | 'INVALID_JSON' | 'TOO_LARGE';
+
+/**
+ * Largest body read from a provider. An eight-day hourly forecast is about 20 kB
+ * and a geocoding search a few kB, so this only stops a runaway answer.
+ */
+export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 /**
  * A failed upstream request. `message` is client-facing and carries no provider
@@ -27,13 +33,15 @@ export interface JsonRequestOptions {
   label: string;
   /** Limit for each attempt, covering the response body as well as the headers. */
   timeoutMs: number;
+  /** Largest body accepted, in bytes; defaults to MAX_RESPONSE_BYTES. */
+  maxBytes?: number;
   logger: Logger;
 }
 
 /**
  * GETs a JSON body with a per-attempt timeout and at most one retry, only after a
- * timeout, a network error or HTTP 5xx. A rate limit, another HTTP error or an
- * invalid body fails at once. The final failure is logged with provider text
+ * timeout, a network error or HTTP 5xx. A rate limit, another HTTP error, an
+ * invalid body or one over the size limit fails at once. The final failure is logged with provider text
  * sanitized for the log.
  */
 export async function requestJson(
@@ -61,7 +69,7 @@ export async function requestJson(
 async function requestOnce(
   fetch: HttpFetch,
   url: URL,
-  { label, timeoutMs }: JsonRequestOptions,
+  { label, timeoutMs, maxBytes = MAX_RESPONSE_BYTES }: JsonRequestOptions,
 ): Promise<unknown> {
   let response: Response;
   let text: string;
@@ -70,8 +78,11 @@ async function requestOnce(
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(timeoutMs),
     });
-    text = await response.text();
+    text = await readText(response, maxBytes, label);
   } catch (error) {
+    if (error instanceof UpstreamRequestError) {
+      throw error;
+    }
     if (errorName(error) === 'TimeoutError') {
       throw new UpstreamRequestError(
         'TIMEOUT',
@@ -115,6 +126,51 @@ async function requestOnce(
       { cause: error },
     );
   }
+}
+
+/**
+ * Reads the body as UTF-8, giving up as soon as it passes `maxBytes` — from the
+ * declared length when there is one, otherwise while streaming — so an oversized
+ * answer is never buffered whole.
+ */
+async function readText(response: Response, maxBytes: number, label: string): Promise<string> {
+  const tooLarge = () =>
+    new UpstreamRequestError(
+      'TOO_LARGE',
+      `${label} answered with more than ${maxBytes} bytes.`,
+      false,
+    );
+  if (Number(response.headers.get('content-length')) > maxBytes) {
+    discard(response.body?.cancel());
+    throw tooLarge();
+  }
+  if (response.body === null) {
+    return '';
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      return text + decoder.decode();
+    }
+    received += value.byteLength;
+    if (received > maxBytes) {
+      discard(reader.cancel());
+      throw tooLarge();
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+}
+
+/**
+ * Releases a body without waiting: cancelling one branch of a cloned (tee'd) stream
+ * settles only once the other branch is cancelled too.
+ */
+function discard(cancel: Promise<void> | undefined): void {
+  cancel?.catch(() => undefined);
 }
 
 function logFailure(error: unknown, { label, logger }: JsonRequestOptions): void {

@@ -9,6 +9,7 @@ import {
 } from '../../test/fixtures/open-meteo-weather';
 import { rejected, thrown } from '../../test/support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../test/support/fixture-fetch';
+import { MAX_RESPONSE_BYTES } from '../http/json-request';
 import { SourceRefreshError } from './forecast.errors';
 import { ATMOSPHERIC_SPEC, OpenMeteoAtmosphericClient } from './open-meteo-atmospheric.client';
 import {
@@ -223,6 +224,18 @@ describe('Open-Meteo forecast retries', () => {
     expect(logged).toContain('line one FORGED LOG LINE');
     expect(/\p{Cc}/u.test(logged)).toBe(false);
     expect(logged.length).toBeLessThan(300);
+  });
+
+  it('rejects an oversized answer without retrying', async () => {
+    const fetch = sequence(new Response(' '.repeat(MAX_RESPONSE_BYTES + 1), { status: 200 }));
+
+    const error = await refreshError(new OpenMeteoMarineClient(fetch).fetchForecast(PENICHE));
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(error.code).toBe('INVALID_PAYLOAD');
+    expect(error.message).toBe(
+      `Marine forecast answered with more than ${MAX_RESPONSE_BYTES} bytes.`,
+    );
   });
 
   it('does not retry an invalid payload', async () => {

@@ -71,7 +71,7 @@ function toRefreshError(error: UpstreamRequestError): SourceRefreshError {
       ? 'TIMEOUT'
       : error.kind === 'RATE_LIMITED'
         ? 'RATE_LIMITED'
-        : error.kind === 'INVALID_JSON'
+        : error.kind === 'INVALID_JSON' || error.kind === 'TOO_LARGE'
           ? 'INVALID_PAYLOAD'
           : 'UPSTREAM_FAILURE';
   return new SourceRefreshError(code, error.message, { cause: error, transient: error.transient });
