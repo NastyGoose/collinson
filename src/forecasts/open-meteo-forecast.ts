@@ -1,0 +1,256 @@
+import type { Logger } from '@nestjs/common';
+import type { HttpFetch } from '../http/http-fetch';
+import type { Location } from '../locations/location';
+import { SourceRefreshError } from './forecast.errors';
+import type { HourlySeries, NormalizedForecast, WeatherSource } from './weather-source';
+
+/** Per-attempt limit (SPEC-02). */
+export const OPEN_METEO_TIMEOUT_MS = 5_000;
+
+/** Today plus the seven ranked dates, so a request near local midnight still has tomorrow. */
+export const FORECAST_DAYS_REQUESTED = 8;
+
+/** What one Open-Meteo forecast API is asked for and how its answer is checked. */
+export interface ForecastSourceSpec {
+  source: WeatherSource;
+  /** Bump when the request or the normalized shape changes; it is part of the snapshot key. */
+  schemaVersion: number;
+  /** Used in client-facing failure reasons, e.g. "Marine forecast". */
+  label: string;
+  endpoint: string;
+  /** Hourly variables requested, each with the unit the payload must declare. */
+  variables: Readonly<Record<string, string>>;
+  /** Further query parameters, such as explicit units or grid-cell selection. */
+  params: Readonly<Record<string, string>>;
+  /** Local hours (0–23) that must be present on every ranked date. */
+  requiredLocalHours: readonly number[];
+}
+
+export type ForecastLocation = Pick<Location, 'latitude' | 'longitude' | 'timezone'>;
+
+/**
+ * Shared Open-Meteo forecast adapter: one bounded request, then validation into a
+ * NormalizedForecast. Subclasses supply the source spec. Failures surface as
+ * SourceRefreshError; nothing here reads or writes storage.
+ */
+export abstract class OpenMeteoForecastClient {
+  abstract readonly spec: ForecastSourceSpec;
+  protected abstract readonly logger: Logger;
+
+  protected constructor(private readonly fetch: HttpFetch) {}
+
+  async fetchForecast(location: ForecastLocation): Promise<NormalizedForecast> {
+    const body = await this.fetchWithRetry(forecastUrl(this.spec, location));
+    return parseForecastResponse(body, this.spec, location);
+  }
+
+  /** At most one retry, and only for failures a second attempt can plausibly fix. */
+  private async fetchWithRetry(url: URL): Promise<unknown> {
+    try {
+      return await this.fetchOnce(url);
+    } catch (error) {
+      if (!(error instanceof SourceRefreshError) || !error.transient) {
+        this.logFailure(error);
+        throw error;
+      }
+      this.logger.warn(`${this.spec.label} attempt failed (${error.code}); retrying once`);
+      try {
+        return await this.fetchOnce(url);
+      } catch (retryError) {
+        this.logFailure(retryError);
+        throw retryError;
+      }
+    }
+  }
+
+  private async fetchOnce(url: URL): Promise<unknown> {
+    const label = this.spec.label;
+    let response: Response;
+    let text: string;
+    try {
+      response = await this.fetch(url, {
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(OPEN_METEO_TIMEOUT_MS),
+      });
+      text = await response.text();
+    } catch (error) {
+      if (errorName(error) === 'TimeoutError') {
+        throw new SourceRefreshError(
+          'TIMEOUT',
+          `${label} did not answer within ${OPEN_METEO_TIMEOUT_MS} ms.`,
+          { cause: error, transient: true },
+        );
+      }
+      throw new SourceRefreshError('UPSTREAM_FAILURE', `${label} request failed.`, {
+        cause: error,
+        transient: true,
+      });
+    }
+
+    if (response.status === 429) {
+      throw new SourceRefreshError('RATE_LIMITED', `${label} rate limit reached (HTTP 429).`);
+    }
+    if (!response.ok) {
+      throw new SourceRefreshError(
+        'UPSTREAM_FAILURE',
+        `${label} answered HTTP ${response.status}.`,
+        { cause: text.slice(0, 500), transient: response.status >= 500 },
+      );
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(text);
+      return parsed;
+    } catch (error) {
+      throw new SourceRefreshError('INVALID_PAYLOAD', `${label} answered with invalid JSON.`, {
+        cause: error,
+      });
+    }
+  }
+
+  private logFailure(error: unknown): void {
+    if (!(error instanceof SourceRefreshError)) {
+      this.logger.warn(`${this.spec.label} unavailable: ${String(error)}`);
+      return;
+    }
+    const detail = typeof error.cause === 'string' ? `: ${error.cause}` : '';
+    this.logger.warn(`${this.spec.label} unavailable (${error.code})${detail}`);
+  }
+}
+
+/** The request URL: explicit horizon, time zone, Unix timestamps and variables. Exported for tests. */
+export function forecastUrl(spec: ForecastSourceSpec, location: ForecastLocation): URL {
+  const url = new URL(spec.endpoint);
+  url.searchParams.set('latitude', String(location.latitude));
+  url.searchParams.set('longitude', String(location.longitude));
+  url.searchParams.set('hourly', Object.keys(spec.variables).join(','));
+  url.searchParams.set('forecast_days', String(FORECAST_DAYS_REQUESTED));
+  url.searchParams.set('timezone', location.timezone);
+  url.searchParams.set('timeformat', 'unixtime');
+  for (const [name, value] of Object.entries(spec.params)) {
+    url.searchParams.set(name, value);
+  }
+  return url;
+}
+
+/**
+ * Validates a parsed 2xx body and normalizes it. Exported for unit tests.
+ *
+ * Checks the structure only: returned coordinates, declared units, strictly
+ * increasing integer timestamps, and one number-or-null per timestamp in every
+ * requested series. Nulls are kept as they are — a series may be entirely null —
+ * and date coverage is checked separately against each caller's window.
+ */
+export function parseForecastResponse(
+  body: unknown,
+  spec: ForecastSourceSpec,
+  location: ForecastLocation,
+): NormalizedForecast {
+  const invalid = (detail: string) =>
+    new SourceRefreshError('INVALID_PAYLOAD', `${spec.label} payload is invalid: ${detail}.`);
+
+  if (!isRecord(body)) {
+    throw invalid('the body is not an object');
+  }
+  if (body.error === true) {
+    // The provider's reason stays in the cause for logs, out of the client-facing message.
+    throw new SourceRefreshError('UPSTREAM_FAILURE', `${spec.label} reported an error.`, {
+      cause: body.reason,
+    });
+  }
+  if (!isCoordinate(body.latitude, 90) || !isCoordinate(body.longitude, 180)) {
+    throw invalid('the returned coordinates are missing or out of range');
+  }
+
+  const units = body.hourly_units;
+  if (!isRecord(units)) {
+    throw invalid('hourly_units is missing');
+  }
+  if (units.time !== 'unixtime') {
+    throw invalid('timestamps are not Unix time');
+  }
+  for (const [variable, unit] of Object.entries(spec.variables)) {
+    if (units[variable] !== unit) {
+      throw invalid(`${variable} is in ${JSON.stringify(units[variable])}, expected "${unit}"`);
+    }
+  }
+
+  const hourly = body.hourly;
+  if (!isRecord(hourly)) {
+    throw invalid('hourly is missing');
+  }
+  const time = parseTimes(hourly.time, invalid);
+  const series: HourlySeries['series'] = {};
+  for (const variable of Object.keys(spec.variables)) {
+    series[variable] = parseSeries(hourly[variable], time.length, variable, invalid);
+  }
+
+  return {
+    source: spec.source,
+    schemaVersion: spec.schemaVersion,
+    requested: { latitude: location.latitude, longitude: location.longitude },
+    returned: { latitude: body.latitude, longitude: body.longitude },
+    timezone: location.timezone,
+    units: { ...spec.variables },
+    hourly: { time, series },
+    coverageStart: new Date(time[0] * 1000),
+    coverageEnd: new Date(time[time.length - 1] * 1000),
+  };
+}
+
+function parseTimes(value: unknown, invalid: (detail: string) => Error): number[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw invalid('hourly.time is missing or empty');
+  }
+  const times: unknown[] = value;
+  let previous = -Infinity;
+  for (const time of times) {
+    if (typeof time !== 'number' || !Number.isSafeInteger(time)) {
+      throw invalid('hourly.time holds a value that is not an integer timestamp');
+    }
+    if (time <= previous) {
+      throw invalid('hourly.time is not strictly increasing');
+    }
+    previous = time;
+  }
+  return times as number[];
+}
+
+function parseSeries(
+  value: unknown,
+  length: number,
+  variable: string,
+  invalid: (detail: string) => Error,
+): (number | null)[] {
+  if (!Array.isArray(value)) {
+    throw invalid(`hourly.${variable} is missing`);
+  }
+  const samples: unknown[] = value;
+  if (samples.length !== length) {
+    throw invalid(`hourly.${variable} has ${samples.length} values for ${length} timestamps`);
+  }
+  for (const sample of samples) {
+    if (sample !== null && (typeof sample !== 'number' || !Number.isFinite(sample))) {
+      throw invalid(`hourly.${variable} holds a value that is neither a number nor null`);
+    }
+  }
+  return samples as (number | null)[];
+}
+
+// Not `instanceof Error`: fetch's DOMException can come from another realm (e.g. under Jest).
+function errorName(error: unknown): string | undefined {
+  return typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    typeof error.name === 'string'
+    ? error.name
+    : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isCoordinate(value: unknown, limit: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
+}
