@@ -1,42 +1,38 @@
-import { Logger } from '@nestjs/common';
 import { GraphQLError } from 'graphql';
 import { ForecastStorageUnavailableError } from '../forecasts/forecast.errors';
-import { InvalidLocationInputError } from '../locations/location.errors';
-import { formatGraphQLError, toGraphQLError } from './graphql-errors';
+import {
+  GeocodingUnavailableError,
+  InvalidLocationInputError,
+  StorageUnavailableError,
+} from '../locations/location.errors';
+import { DomainErrorFilter, formatGraphQLError } from './graphql-errors';
 
-describe('toGraphQLError', () => {
-  it('keeps the client-facing message and sets the documented code', () => {
-    const error = toGraphQLError(new ForecastStorageUnavailableError('Could not save.'));
+describe('DomainErrorFilter', () => {
+  const filter = new DomainErrorFilter();
+
+  it.each([
+    [new GeocodingUnavailableError('TIMEOUT', 'Geocoding timed out.'), 'GEOCODING_UNAVAILABLE'],
+    [new StorageUnavailableError('Could not read a location.'), 'STORAGE_UNAVAILABLE'],
+    [new ForecastStorageUnavailableError('Could not save a snapshot.'), 'STORAGE_UNAVAILABLE'],
+  ])('keeps the message of %s and sets %s', (failure, code) => {
+    const error = filter.catch(failure);
 
     expect(error).toBeInstanceOf(GraphQLError);
-    expect(error).toMatchObject({
-      message: 'Could not save.',
-      extensions: { code: 'STORAGE_UNAVAILABLE' },
-    });
+    expect(error.message).toBe(failure.message);
+    expect(error.extensions).toEqual({ code });
   });
 
-  it('carries a null field for a selector-level BAD_USER_INPUT', () => {
-    const error = toGraphQLError(new InvalidLocationInputError('Provide exactly one.', null));
+  it.each([['city' as const], ['countryCode' as const], ['locationId' as const], [null]])(
+    'names the field at fault (%s) in BAD_USER_INPUT',
+    (field) => {
+      const error = filter.catch(new InvalidLocationInputError('Invalid.', field));
 
-    expect(error).toMatchObject({ extensions: { code: 'BAD_USER_INPUT', field: null } });
-  });
-
-  it('returns any other error unchanged', () => {
-    const bug = new TypeError('boom');
-
-    expect(toGraphQLError(bug)).toBe(bug);
-  });
+      expect(error.extensions).toEqual({ code: 'BAD_USER_INPUT', field });
+    },
+  );
 });
 
 describe('formatGraphQLError', () => {
-  beforeEach(() => {
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
   it('passes an error with a documented code through untouched', () => {
     const formatted = {
       message: 'Geocoding is unavailable.',
@@ -44,29 +40,27 @@ describe('formatGraphQLError', () => {
       extensions: { code: 'GEOCODING_UNAVAILABLE' },
     };
 
-    expect(formatGraphQLError(formatted, new GraphQLError(formatted.message))).toBe(formatted);
+    expect(formatGraphQLError(formatted)).toBe(formatted);
   });
 
   it('masks an internal error and drops everything but its code', () => {
-    const cause = new Error('connect ECONNREFUSED 127.0.0.1:5432');
     const formatted = {
-      message: cause.message,
+      message: 'connect ECONNREFUSED 127.0.0.1:5432',
+      locations: [{ line: 2, column: 3 }],
       path: ['activityForecast'],
       extensions: { code: 'INTERNAL_SERVER_ERROR', stacktrace: ['Error: connect ECONNREFUSED'] },
     };
 
-    expect(
-      formatGraphQLError(formatted, new GraphQLError(cause.message, { originalError: cause })),
-    ).toEqual({
+    expect(formatGraphQLError(formatted)).toStrictEqual({
       message: 'Internal server error.',
+      locations: [{ line: 2, column: 3 }],
       path: ['activityForecast'],
       extensions: { code: 'INTERNAL_SERVER_ERROR' },
     });
-    expect(Logger.prototype.error).toHaveBeenCalledWith(cause.message, cause.stack);
   });
 
   it('masks an error that has no code at all', () => {
-    expect(formatGraphQLError({ message: 'odd' }, new Error('odd'))).toEqual({
+    expect(formatGraphQLError({ message: 'odd' })).toStrictEqual({
       message: 'Internal server error.',
       extensions: { code: 'INTERNAL_SERVER_ERROR' },
     });
