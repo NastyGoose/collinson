@@ -11,13 +11,15 @@ A backend assessment service. Given a city or town, it ranks the next seven days
 
 ## Status
 
-The service skeleton is in place (ARC-44): NestJS with a schema-first GraphQL endpoint, PostgreSQL through Docker Compose, Prisma with checked-in migrations, and unit, integration and E2E test tiers. The only query so far is `health`.
+The service skeleton is in place (ARC-44): NestJS with a schema-first GraphQL endpoint, PostgreSQL through Docker Compose, Prisma with checked-in migrations, and unit, integration and E2E test tiers. Besides the `health` probe it serves `locations` and `activityForecast` (ARC-48), described under [GraphQL queries](#graphql-queries).
 
-Location resolution (ARC-45) is implemented as a service, not yet exposed over GraphQL. It geocodes a city through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api), stores locations under their stable Open-Meteo IDs, caches searches by normalized city and country filter (24 hours for matches, one hour for a genuine no-match, provider failures never cached, expired entries purged on later fetches) and resolves a stored ID without geocoding. The GraphQL `locations` and `activityForecast` queries arrive in ARC-48.
+Location resolution (ARC-45) geocodes a city through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api), stores locations under their stable Open-Meteo IDs, caches searches by normalized city and country filter (24 hours for matches, one hour for a genuine no-match, provider failures never cached, expired entries purged on later fetches) and resolves a stored ID without geocoding.
 
-Forecast persistence (ARC-46) is implemented as a service, not yet exposed over GraphQL. It fetches eight days of hourly weather from the [Open-Meteo forecast](https://open-meteo.com/en/docs) and [marine](https://open-meteo.com/en/docs/marine-weather-api) APIs as two independent sources, validates units, timestamps and array alignment while keeping null measurements, and stores one normalized snapshot per location, source and request schema version in PostgreSQL. A snapshot is reused while it is under six hours old and still covers the required local hours of the seven requested dates. Concurrent refreshes of the same location and source in one process share one request; each attempt has a five-second timeout and timeouts, network errors and 5xx answers are retried once; rate limits, other 4xx answers, invalid payloads and answers over 2 MiB are not. A refresh that fails, does not validate or does not cover the requested dates never replaces the stored snapshot, which is then served as stale for up to 24 hours if it still covers the dates; otherwise the source is reported unavailable.
+Forecast persistence (ARC-46) fetches eight days of hourly weather from the [Open-Meteo forecast](https://open-meteo.com/en/docs) and [marine](https://open-meteo.com/en/docs/marine-weather-api) APIs as two independent sources, validates units, timestamps and array alignment while keeping null measurements, and stores one normalized snapshot per location, source and request schema version in PostgreSQL. A snapshot is reused while it is under six hours old and still covers the required local hours of the seven requested dates. Concurrent refreshes of the same location and source in one process share one request; each attempt has a five-second timeout and timeouts, network errors and 5xx answers are retried once; rate limits, other 4xx answers, invalid payloads and answers over 2 MiB are not. A refresh that fails, does not validate or does not cover the requested dates never replaces the stored snapshot, which is then served as stale for up to 24 hours if it still covers the dates; otherwise the source is reported unavailable.
 
-Activity scoring v1 (ARC-47) is implemented as a pure function, not yet exposed over GraphQL. For each of the seven local dates it reads nine samples per field: temperature, snow depth, 10 m wind and waves at 09:00–17:00, and precipitation at 10:00–18:00 because each value covers the preceding hour. It uses mean temperature and snow depth, total precipitation, maximum wind and median wave height and period, with the weights and breakpoints in [ADR 0005](docs/adr/0005-deterministic-activity-scoring.md). Each activity is ranked on its own by rounded score, then date; a day missing its source, any of the nine samples of a field it uses or, for surfing, a valid marine grid point within 25 km is listed last with a null score and a typed reason. A measured zero, such as no snow, is scored rather than treated as missing.
+Activity scoring v1 (ARC-47) is a pure function. For each of the seven local dates it reads nine samples per field: temperature, snow depth, 10 m wind and waves at 09:00–17:00, and precipitation at 10:00–18:00 because each value covers the preceding hour. It uses mean temperature and snow depth, total precipitation, maximum wind and median wave height and period, with the weights and breakpoints in [ADR 0005](docs/adr/0005-deterministic-activity-scoring.md). Each activity is ranked on its own by rounded score, then date; a day missing its source, any of the nine samples of a field it uses or, for surfing, a valid marine grid point within 25 km is listed last with a null score and a typed reason. A measured zero, such as no snow, is scored rather than treated as missing.
+
+The GraphQL contract (ARC-48) wires these together. `activityForecast` takes the request instant before it resolves the location, derives tomorrow and the six following dates in the location's time zone once, reads both weather sources and scores them. A resolved location always gets four activity groups of seven dates and both source statuses, atmospheric first; a source outage shows as `UNAVAILABLE` in `sources` and as unavailable days with null score and rank, never as a GraphQL error.
 
 ## Prerequisites
 
@@ -54,12 +56,85 @@ Expected response:
 
 `database` reads `DOWN` when PostgreSQL is unreachable; the endpoint itself keeps answering. Stop the app with Ctrl+C, which closes the Prisma connection pool. Stop PostgreSQL with `npm run db:down`; its data stays in the `collinson_postgres-data` volume.
 
+## GraphQL queries
+
+The schema is [`src/activity-forecast/activity-forecast.graphql`](src/activity-forecast/activity-forecast.graphql). Search for a place:
+
+```graphql
+{
+  locations(city: "Springfield", countryCode: "US") {
+    id
+    name
+    region
+    country
+    timezone
+  }
+}
+```
+
+Rank the next seven days, by city or by an `id` from `locations`:
+
+```graphql
+query Forecast($input: ForecastInput!) {
+  activityForecast(input: $input) {
+    __typename
+    ... on ActivityForecast {
+      location {
+        id
+        name
+        country
+        timezone
+      }
+      startDate
+      endDate
+      scoringVersion
+      activities {
+        activity
+        days {
+          date
+          availability
+          score
+          rank
+          reason
+          unavailableCode
+        }
+      }
+      sources {
+        source
+        freshness
+        fetchedAt
+        failureCode
+        reason
+      }
+      attribution
+    }
+    ... on AmbiguousLocation {
+      candidates {
+        id
+        name
+        region
+        country
+      }
+    }
+    ... on LocationNotFound {
+      message
+    }
+  }
+}
+```
+
+with variables such as `{ "input": { "city": "Peniche" } }` or `{ "input": { "locationId": "4250542" } }`. Pass exactly one of `city` and `locationId`; `countryCode` filters a city search only. A city with several matches returns `AmbiguousLocation`, and an unknown city or ID returns `LocationNotFound`.
+
+Errors carry a stable `extensions.code`: `BAD_USER_INPUT` for an invalid selector or filter (with `extensions.field` naming the input at fault, or null for the selector as a whole), `GEOCODING_UNAVAILABLE` when a city search needs Open-Meteo geocoding and it fails, and `STORAGE_UNAVAILABLE` when PostgreSQL cannot serve the request. Anything else is reported as `INTERNAL_SERVER_ERROR` with a generic message; details go to the server log only.
+
+Weather and location data come from [Open-Meteo](https://open-meteo.com/) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); every forecast repeats this in `attribution`.
+
 ## Tests and checks
 
 ```bash
 npm test                   # unit tests, no database
 npm run test:integration   # migrations, location and forecast persistence against a fresh PostgreSQL database
-npm run test:e2e           # GraphQL over HTTP against a fresh PostgreSQL database
+npm run test:e2e           # the GraphQL contract over HTTP, with fixture Open-Meteo answers, against a fresh PostgreSQL database
 npm run typecheck
 npm run lint
 npm run format:check

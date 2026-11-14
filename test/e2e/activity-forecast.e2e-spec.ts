@@ -1,0 +1,560 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { INestApplication, Logger } from '@nestjs/common';
+import { GraphQLSchemaHost } from '@nestjs/graphql';
+import { Test } from '@nestjs/testing';
+import {
+  buildSchema,
+  findBreakingChanges,
+  findDangerousChanges,
+  type GraphQLSchema,
+} from 'graphql';
+import request from 'supertest';
+import { App } from 'supertest/types';
+import { ATTRIBUTION } from '../../src/activity-forecast/activity-forecast.mapper';
+import { AppModule } from '../../src/app.module';
+import { Clock } from '../../src/clock/clock';
+import { ForecastStorageUnavailableError } from '../../src/forecasts/forecast.errors';
+import { ForecastsRepository } from '../../src/forecasts/forecasts.repository';
+import { HTTP_FETCH, type HttpFetch } from '../../src/http/http-fetch';
+import { PrismaService } from '../../src/prisma/prisma.service';
+import {
+  NO_MATCH,
+  PENICHE_PT,
+  resultsBody,
+  SPRINGFIELD_IL,
+  SPRINGFIELD_MA,
+  SPRINGFIELD_MO,
+} from '../fixtures/open-meteo-geocoding';
+import { atmosphericBody, marineBody, PENICHE } from '../fixtures/open-meteo-weather';
+import { FixedClock } from '../support/fixed-clock';
+import { fixtureFetch, jsonResponse, timeoutError } from '../support/fixture-fetch';
+
+const NOON = '2026-11-14T12:00:00.000Z';
+/** Peniche (Europe/Lisbon) is UTC+0 in November: its "today" starts at 00:00 UTC. */
+const PENICHE_TODAY = '2026-11-14T00:00:00Z';
+const WINDOW_DATES = [
+  '2026-11-15',
+  '2026-11-16',
+  '2026-11-17',
+  '2026-11-18',
+  '2026-11-19',
+  '2026-11-20',
+  '2026-11-21',
+];
+
+/** The Technical Design SDL, verbatim: the contract the served schema must match. */
+const TECHNICAL_DESIGN_SDL = /* GraphQL */ `
+  type Query {
+    locations(city: String!, countryCode: String): [Location!]!
+    activityForecast(input: ForecastInput!): ForecastResult!
+  }
+  input ForecastInput {
+    city: String
+    countryCode: String
+    locationId: ID
+  }
+  union ForecastResult = ActivityForecast | AmbiguousLocation | LocationNotFound
+  type Location {
+    id: ID!
+    name: String!
+    country: String!
+    region: String
+    latitude: Float!
+    longitude: Float!
+    timezone: String!
+  }
+  type AmbiguousLocation {
+    candidates: [Location!]!
+  }
+  type LocationNotFound {
+    message: String!
+  }
+  type ActivityForecast {
+    location: Location!
+    startDate: String!
+    endDate: String!
+    scoringVersion: String!
+    activities: [ActivityRanking!]!
+    sources: [SourceStatus!]!
+    attribution: String!
+  }
+  enum Activity {
+    SKIING
+    SURFING
+    OUTDOOR_SIGHTSEEING
+    INDOOR_SIGHTSEEING
+  }
+  type ActivityRanking {
+    activity: Activity!
+    days: [RankedDay!]!
+  }
+  enum DayAvailability {
+    AVAILABLE
+    UNAVAILABLE
+  }
+  enum DayUnavailableCode {
+    ATMOSPHERIC_UNAVAILABLE
+    MARINE_UNAVAILABLE
+    MISSING_ATMOSPHERIC_INPUTS
+    MISSING_MARINE_INPUTS
+    INVALID_MARINE_GRID
+    MARINE_GRID_TOO_DISTANT
+  }
+  type RankedDay {
+    date: String!
+    availability: DayAvailability!
+    score: Int
+    rank: Int
+    reason: String!
+    unavailableCode: DayUnavailableCode
+  }
+  enum WeatherSource {
+    ATMOSPHERIC
+    MARINE
+  }
+  enum Freshness {
+    FRESH
+    STALE
+    UNAVAILABLE
+  }
+  enum SourceFailureCode {
+    TIMEOUT
+    UPSTREAM_FAILURE
+    RATE_LIMITED
+    INVALID_PAYLOAD
+    INSUFFICIENT_COVERAGE
+  }
+  type SourceStatus {
+    source: WeatherSource!
+    freshness: Freshness!
+    fetchedAt: String
+    failureCode: SourceFailureCode
+    reason: String
+  }
+`;
+
+const FORECAST_QUERY = /* GraphQL */ `
+  query Forecast($input: ForecastInput!) {
+    activityForecast(input: $input) {
+      __typename
+      ... on ActivityForecast {
+        location {
+          id
+          name
+          country
+          region
+          latitude
+          longitude
+          timezone
+        }
+        startDate
+        endDate
+        scoringVersion
+        attribution
+        activities {
+          activity
+          days {
+            date
+            availability
+            score
+            rank
+            reason
+            unavailableCode
+          }
+        }
+        sources {
+          source
+          freshness
+          fetchedAt
+          failureCode
+          reason
+        }
+      }
+      ... on AmbiguousLocation {
+        candidates {
+          id
+          name
+          region
+          timezone
+        }
+      }
+      ... on LocationNotFound {
+        message
+      }
+    }
+  }
+`;
+
+const LOCATIONS_QUERY = /* GraphQL */ `
+  query Locations($city: String!, $countryCode: String) {
+    locations(city: $city, countryCode: $countryCode) {
+      id
+      name
+      country
+      region
+      timezone
+    }
+  }
+`;
+
+type Answer = () => Response | Promise<Response>;
+
+/** Fixture Open-Meteo for all three APIs, routed by host; geocoding by the `name` parameter. */
+class FakeOpenMeteo {
+  geocoding: Record<string, Answer> = {
+    peniche: () => jsonResponse(resultsBody(PENICHE_PT)),
+    springfield: () => jsonResponse(resultsBody(SPRINGFIELD_MO, SPRINGFIELD_IL, SPRINGFIELD_MA)),
+    atlantis: () => jsonResponse(NO_MATCH),
+  };
+  atmospheric: Answer = () => jsonResponse(atmosphericBody({ firstHour: PENICHE_TODAY }));
+  marine: Answer = () => jsonResponse(marineBody({ firstHour: PENICHE_TODAY }));
+  readonly calls = { geocoding: 0, atmospheric: 0, marine: 0 };
+  readonly misses: string[] = [];
+  readonly fetch = fixtureFetch((url) => {
+    if (url.hostname === 'geocoding-api.open-meteo.com') {
+      this.calls.geocoding += 1;
+      const answer = this.geocoding[url.searchParams.get('name') ?? ''];
+      if (answer !== undefined) {
+        return answer();
+      }
+    } else if (url.hostname === 'api.open-meteo.com') {
+      this.calls.atmospheric += 1;
+      return this.atmospheric();
+    } else if (url.hostname === 'marine-api.open-meteo.com') {
+      this.calls.marine += 1;
+      return this.marine();
+    }
+    this.misses.push(url.toString());
+    throw new Error(`no fixture for ${url.toString()}`);
+  });
+}
+
+interface GraphQLBody {
+  data?: Record<string, unknown> | null;
+  errors?: { message: string; extensions?: Record<string, unknown> }[];
+}
+
+describe('activity forecast GraphQL contract (e2e)', () => {
+  let app: INestApplication<App>;
+  let prisma: PrismaService;
+  let upstream: FakeOpenMeteo;
+  const clock = new FixedClock(NOON);
+
+  async function post(query: string, variables: Record<string, unknown>): Promise<GraphQLBody> {
+    const response = await request(app.getHttpServer())
+      .post('/graphql')
+      .send({ query, variables })
+      .expect(200);
+    return response.body as GraphQLBody;
+  }
+
+  async function forecast(input: Record<string, unknown>) {
+    const body = await post(FORECAST_QUERY, { input });
+    expect(body.errors).toBeUndefined();
+    return (body.data as { activityForecast: Record<string, unknown> }).activityForecast;
+  }
+
+  beforeAll(async () => {
+    // Refresh failures log a warning by design; keep the test output readable.
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      // Delegates to the current test's fixtures, which beforeEach replaces.
+      .overrideProvider(HTTP_FETCH)
+      .useValue(((input, init) => upstream.fetch(input, init)) satisfies HttpFetch)
+      .overrideProvider(Clock)
+      .useValue(clock)
+      .compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+    prisma = app.get(PrismaService);
+  });
+
+  beforeEach(async () => {
+    upstream = new FakeOpenMeteo();
+    clock.set(NOON);
+    await prisma.$executeRaw`TRUNCATE forecast_snapshots, location_search_results, location_searches, locations`;
+  });
+
+  afterEach(() => {
+    expect(upstream.misses).toEqual([]);
+  });
+
+  afterAll(async () => {
+    await app.close();
+    jest.restoreAllMocks();
+  });
+
+  it('serves the Technical Design SDL', () => {
+    const health = readFileSync(join(__dirname, '../../src/health/health.graphql'), 'utf8');
+    const expected: GraphQLSchema = buildSchema(
+      TECHNICAL_DESIGN_SDL + health.replace('type Query', 'extend type Query'),
+    );
+    const served = app.get(GraphQLSchemaHost).schema;
+
+    for (const [from, to] of [
+      [expected, served],
+      [served, expected],
+    ]) {
+      expect(findBreakingChanges(from, to)).toEqual([]);
+      expect(findDangerousChanges(from, to)).toEqual([]);
+    }
+  });
+
+  it('ranks a unique city: four groups of the seven local dates, fresh sources', async () => {
+    const result = await forecast({ city: '  Peniche ' });
+
+    expect(result).toMatchObject({
+      __typename: 'ActivityForecast',
+      location: PENICHE,
+      startDate: '2026-11-15',
+      endDate: '2026-11-21',
+      scoringVersion: 'v1',
+      attribution: ATTRIBUTION,
+      sources: [
+        {
+          source: 'ATMOSPHERIC',
+          freshness: 'FRESH',
+          fetchedAt: NOON,
+          failureCode: null,
+          reason: null,
+        },
+        { source: 'MARINE', freshness: 'FRESH', fetchedAt: NOON, failureCode: null, reason: null },
+      ],
+    });
+    const activities = result.activities as {
+      activity: string;
+      days: { date: string; availability: string; score: number | null; rank: number | null }[];
+    }[];
+    expect(activities.map((ranking) => ranking.activity)).toEqual([
+      'SKIING',
+      'SURFING',
+      'OUTDOOR_SIGHTSEEING',
+      'INDOOR_SIGHTSEEING',
+    ]);
+    for (const ranking of activities) {
+      expect(ranking.days.map((day) => day.date).sort()).toEqual(WINDOW_DATES);
+      expect(ranking.days.map((day) => day.rank)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(ranking.days.every((day) => Number.isInteger(day.score))).toBe(true);
+    }
+    expect(upstream.calls).toEqual({ geocoding: 1, atmospheric: 1, marine: 1 });
+  });
+
+  it('returns distinct candidates for an ambiguous city and no rankings', async () => {
+    const result = await forecast({ city: 'Springfield' });
+
+    expect(result).toEqual({
+      __typename: 'AmbiguousLocation',
+      candidates: [
+        { id: '4409896', name: 'Springfield', region: 'Missouri', timezone: 'America/Chicago' },
+        { id: '4250542', name: 'Springfield', region: 'Illinois', timezone: 'America/Chicago' },
+        {
+          id: '4951788',
+          name: 'Springfield',
+          region: 'Massachusetts',
+          timezone: 'America/New_York',
+        },
+      ],
+    });
+    expect(upstream.calls.atmospheric + upstream.calls.marine).toBe(0);
+  });
+
+  it('ranks a candidate selected by its stored ID without geocoding again', async () => {
+    await forecast({ city: 'Springfield' });
+    upstream.atmospheric = () =>
+      jsonResponse(
+        atmosphericBody({ firstHour: '2026-11-14T06:00:00Z', timezone: 'America/Chicago' }),
+      );
+    upstream.marine = () =>
+      jsonResponse(marineBody({ firstHour: '2026-11-14T06:00:00Z', waves: 'null' }));
+
+    const result = await forecast({ locationId: '4250542' });
+
+    expect(result).toMatchObject({
+      __typename: 'ActivityForecast',
+      location: { id: '4250542', region: 'Illinois', timezone: 'America/Chicago' },
+      startDate: '2026-11-15',
+    });
+    expect(upstream.calls.geocoding).toBe(1);
+  });
+
+  it.each([
+    ['an unknown city', { city: 'Atlantis' }, 'No location matches "Atlantis".'],
+    ['an unknown stored ID', { locationId: '999' }, 'No stored location has ID "999".'],
+  ])('returns a typed not-found result for %s', async (_name, input, message) => {
+    await expect(forecast(input)).resolves.toEqual({ __typename: 'LocationNotFound', message });
+  });
+
+  it.each([
+    ['both selectors', { city: 'Peniche', locationId: '2264508' }, null],
+    ['no selector', {}, null],
+    [
+      'a country filter with a stored ID',
+      { locationId: '2264508', countryCode: 'PT' },
+      'countryCode',
+    ],
+    ['a one-letter city', { city: ' P ' }, 'city'],
+  ])('rejects %s with BAD_USER_INPUT', async (_name, input, field) => {
+    const body = await post(FORECAST_QUERY, { input });
+
+    expect(body.data).toBeNull();
+    expect(body.errors).toHaveLength(1);
+    expect(body.errors?.[0].extensions).toEqual({ code: 'BAD_USER_INPUT', field });
+    expect(upstream.calls.geocoding).toBe(0);
+  });
+
+  it('reports a snapshot storage failure as STORAGE_UNAVAILABLE', async () => {
+    jest
+      .spyOn(app.get(ForecastsRepository), 'findSnapshot')
+      .mockRejectedValueOnce(
+        new ForecastStorageUnavailableError('Could not read a forecast snapshot.'),
+      );
+
+    const body = await post(FORECAST_QUERY, { input: { city: 'Peniche' } });
+
+    expect(body).toEqual({
+      data: null,
+      errors: [
+        expect.objectContaining({
+          message: 'Could not read a forecast snapshot.',
+          extensions: { code: 'STORAGE_UNAVAILABLE' },
+        }),
+      ],
+    });
+  });
+
+  it('masks an unexpected failure as INTERNAL_SERVER_ERROR without its details', async () => {
+    const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest
+      .spyOn(app.get(ForecastsRepository), 'findSnapshot')
+      .mockRejectedValueOnce(new Error('relation "forecast_snapshots" does not exist'));
+
+    const body = await post(FORECAST_QUERY, { input: { city: 'Peniche' } });
+
+    expect(body).toEqual({
+      data: null,
+      errors: [
+        {
+          message: 'Internal server error.',
+          locations: expect.any(Array),
+          path: ['activityForecast'],
+          extensions: { code: 'INTERNAL_SERVER_ERROR' },
+        },
+      ],
+    });
+    expect(logError).toHaveBeenCalled();
+    logError.mockRestore();
+  });
+
+  it('reports a geocoding outage as GEOCODING_UNAVAILABLE without provider details', async () => {
+    upstream.geocoding.peniche = () => jsonResponse({ error: true, reason: 'internal' }, 503);
+
+    for (const [query, variables] of [
+      [FORECAST_QUERY, { input: { city: 'Peniche' } }],
+      [LOCATIONS_QUERY, { city: 'Peniche' }],
+    ] as const) {
+      const body = await post(query, variables);
+
+      expect(body.data).toBeNull();
+      expect(body.errors?.[0].extensions).toEqual({ code: 'GEOCODING_UNAVAILABLE' });
+      expect(body.errors?.[0].message).not.toContain('internal');
+    }
+  });
+
+  it('lists the candidates for a city and rejects an invalid country filter', async () => {
+    await expect(
+      post(LOCATIONS_QUERY, { city: 'springfield', countryCode: null }),
+    ).resolves.toEqual({
+      data: {
+        locations: [
+          expect.objectContaining({ id: '4409896' }),
+          expect.objectContaining({ id: '4250542' }),
+          expect.objectContaining({ id: '4951788' }),
+        ],
+      },
+    });
+
+    const invalid = await post(LOCATIONS_QUERY, { city: 'Springfield', countryCode: 'USA' });
+    expect(invalid.errors?.[0].extensions).toEqual({
+      code: 'BAD_USER_INPUT',
+      field: 'countryCode',
+    });
+  });
+
+  it('keeps the atmospheric rankings and explains surfing during a marine timeout', async () => {
+    upstream.marine = () => {
+      throw timeoutError();
+    };
+
+    const result = await forecast({ city: 'Peniche' });
+
+    const [atmospheric, marine] = result.sources as Record<string, unknown>[];
+    expect(atmospheric).toMatchObject({ freshness: 'FRESH', fetchedAt: NOON });
+    expect(marine).toMatchObject({
+      source: 'MARINE',
+      freshness: 'UNAVAILABLE',
+      fetchedAt: null,
+      failureCode: 'TIMEOUT',
+    });
+    expect(marine.reason).toEqual(expect.any(String));
+    const activities = result.activities as {
+      activity: string;
+      days: Record<string, unknown>[];
+    }[];
+    for (const ranking of activities) {
+      expect(ranking.days).toHaveLength(7);
+      const surfing = ranking.activity === 'SURFING';
+      for (const day of ranking.days) {
+        expect(day).toMatchObject(
+          surfing
+            ? {
+                availability: 'UNAVAILABLE',
+                score: null,
+                rank: null,
+                unavailableCode: 'MARINE_UNAVAILABLE',
+              }
+            : { availability: 'AVAILABLE', unavailableCode: null },
+        );
+      }
+    }
+  });
+
+  it('returns 28 dated entries with null scores during a complete weather outage', async () => {
+    upstream.atmospheric = () => jsonResponse({ error: true, reason: 'down' }, 503);
+    upstream.marine = () => jsonResponse({ error: true, reason: 'down' }, 503);
+
+    const result = await forecast({ city: 'Peniche' });
+
+    expect(result).toMatchObject({ __typename: 'ActivityForecast', location: PENICHE });
+    expect(result.sources).toEqual([
+      expect.objectContaining({
+        source: 'ATMOSPHERIC',
+        freshness: 'UNAVAILABLE',
+        fetchedAt: null,
+        failureCode: 'UPSTREAM_FAILURE',
+      }),
+      expect.objectContaining({
+        source: 'MARINE',
+        freshness: 'UNAVAILABLE',
+        fetchedAt: null,
+        failureCode: 'UPSTREAM_FAILURE',
+      }),
+    ]);
+    const activities = result.activities as { days: Record<string, unknown>[] }[];
+    expect(activities).toHaveLength(4);
+    const days = activities.flatMap((ranking) => ranking.days);
+    expect(days).toHaveLength(28);
+    for (const ranking of activities) {
+      expect(ranking.days.map((day) => day.date)).toEqual(WINDOW_DATES);
+    }
+    for (const day of days) {
+      expect(day).toMatchObject({
+        availability: 'UNAVAILABLE',
+        score: null,
+        rank: null,
+        unavailableCode: 'ATMOSPHERIC_UNAVAILABLE',
+      });
+      expect(day.reason).toEqual(expect.any(String));
+    }
+  });
+});

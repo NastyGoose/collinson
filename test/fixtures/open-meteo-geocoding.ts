@@ -75,6 +75,19 @@ export const SAO_PAULO_BR: RawResult = {
   timezone: 'America/Sao_Paulo',
 };
 
+/** Geocodes to the PENICHE location of the weather fixtures, so both fixture sets line up. */
+export const PENICHE_PT: RawResult = {
+  id: 2264508,
+  name: 'Peniche',
+  latitude: 39.3558,
+  longitude: -9.38112,
+  feature_code: 'PPL',
+  country_code: 'PT',
+  country: 'Portugal',
+  admin1: 'Leiria',
+  timezone: 'Europe/Lisbon',
+};
+
 /** A no-match: the provider omits `results` entirely. */
 export const NO_MATCH = { generationtime_ms: 0.05 };
 
