@@ -6,8 +6,9 @@ import { ForecastStorageUnavailableError } from './forecast.errors';
 import type { HourlySeries, WeatherSnapshot, WeatherSource } from './weather-source';
 
 /**
- * PostgreSQL access for forecast snapshots. Every database failure surfaces as
- * ForecastStorageUnavailableError. No method calls a provider.
+ * PostgreSQL access for forecast snapshots. An unreachable or failing database
+ * surfaces as ForecastStorageUnavailableError; other Prisma errors are rethrown
+ * unchanged. No method calls a provider.
  */
 @Injectable()
 export class ForecastsRepository {

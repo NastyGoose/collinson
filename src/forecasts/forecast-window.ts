@@ -41,7 +41,7 @@ export type Coverage = { complete: true } | { complete: false; missing: string[]
  * local hour (hh:00:00) on every date of the window, converting each instant in the
  * window's time zone. An hour with no instant — absent from the payload or skipped
  * by a DST change — or with two is missing. Measurement values play no part.
- * `missing` lists the first few gaps as local `YYYY-MM-DDThh:00`.
+ * `missing` lists every gap as local `YYYY-MM-DDThh:00`.
  */
 export function checkCoverage(
   times: readonly number[],

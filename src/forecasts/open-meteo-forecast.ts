@@ -41,7 +41,12 @@ export abstract class OpenMeteoForecastClient {
 
   async fetchForecast(location: ForecastLocation): Promise<NormalizedForecast> {
     const body = await this.fetchWithRetry(forecastUrl(this.spec, location));
-    return parseForecastResponse(body, this.spec, location);
+    try {
+      return parseForecastResponse(body, this.spec, location);
+    } catch (error) {
+      this.logFailure(error);
+      throw error;
+    }
   }
 
   /** At most one retry, and only for failures a second attempt can plausibly fix. */
@@ -94,7 +99,7 @@ export abstract class OpenMeteoForecastClient {
       throw new SourceRefreshError(
         'UPSTREAM_FAILURE',
         `${label} answered HTTP ${response.status}.`,
-        { cause: text.slice(0, 500), transient: response.status >= 500 },
+        { cause: text, transient: response.status >= 500 },
       );
     }
 
@@ -113,7 +118,7 @@ export abstract class OpenMeteoForecastClient {
       this.logger.warn(`${this.spec.label} unavailable: ${String(error)}`);
       return;
     }
-    const detail = typeof error.cause === 'string' ? `: ${error.cause}` : '';
+    const detail = typeof error.cause === 'string' ? `: ${forLog(error.cause)}` : '';
     this.logger.warn(`${this.spec.label} unavailable (${error.code})${detail}`);
   }
 }
@@ -171,7 +176,8 @@ export function parseForecastResponse(
   }
   for (const [variable, unit] of Object.entries(spec.variables)) {
     if (units[variable] !== unit) {
-      throw invalid(`${variable} is in ${JSON.stringify(units[variable])}, expected "${unit}"`);
+      // The declared unit is provider text: name only the variable and the expected unit.
+      throw invalid(`${variable} is not in ${unit}`);
     }
   }
 
@@ -205,8 +211,15 @@ function parseTimes(value: unknown, invalid: (detail: string) => Error): number[
   const times: unknown[] = value;
   let previous = -Infinity;
   for (const time of times) {
-    if (typeof time !== 'number' || !Number.isSafeInteger(time)) {
-      throw invalid('hourly.time holds a value that is not an integer timestamp');
+    // Whole minutes within the range a Date can hold. Zones with :30 or :45 offsets
+    // put local hours off the UTC hour, so whole hours are not required.
+    if (
+      typeof time !== 'number' ||
+      !Number.isSafeInteger(time) ||
+      time % 60 !== 0 ||
+      Math.abs(time) > MAX_UNIX_SECONDS
+    ) {
+      throw invalid('hourly.time holds a value that is not a valid Unix timestamp');
     }
     if (time <= previous) {
       throw invalid('hourly.time is not strictly increasing');
@@ -235,6 +248,14 @@ function parseSeries(
     }
   }
   return samples as (number | null)[];
+}
+
+/** The largest instant a Date can hold, in seconds (ECMAScript: 8.64e15 ms either side of 1970). */
+const MAX_UNIX_SECONDS = 8.64e12;
+
+/** Provider text, cut short and stripped of control characters so it cannot forge log lines. */
+function forLog(text: string): string {
+  return text.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').slice(0, 200);
 }
 
 // Not `instanceof Error`: fetch's DOMException can come from another realm (e.g. under Jest).

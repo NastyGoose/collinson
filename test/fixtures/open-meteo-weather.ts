@@ -29,6 +29,13 @@ export const WARSAW: Location = {
   timezone: 'Europe/Warsaw',
 };
 
+/** A provider payload as the fixtures build it: every field untrusted, except the shape tests edit. */
+export interface Payload {
+  [key: string]: unknown;
+  hourly: Record<string, unknown[]>;
+  hourly_units: Record<string, unknown>;
+}
+
 export interface HourlyOptions {
   /** UTC instant of the first row, normally local midnight of the provider's "today". */
   firstHour: string;
@@ -37,7 +44,9 @@ export interface HourlyOptions {
   /** Returned grid point; defaults to a point near the requested one. */
   latitude?: number;
   longitude?: number;
+  /** Echoed time zone and offset; the adapter ignores both and buckets by the location's zone. */
   timezone?: string;
+  utcOffsetSeconds?: number;
 }
 
 export function hourlyTimes(firstHour: string, hours = 8 * 24): number[] {
@@ -45,16 +54,18 @@ export function hourlyTimes(firstHour: string, hours = 8 * 24): number[] {
   return Array.from({ length: hours }, (_, index) => first + index * HOUR_S);
 }
 
-/** A complete atmospheric payload: mild, dry and breezy every hour. */
-export function atmosphericBody(options: HourlyOptions): Record<string, unknown> {
+/**
+ * A complete atmospheric payload: mild, dry and breezy, with a null temperature at
+ * 03:00 local each day (outside the ranked hours) as the provider sometimes sends.
+ */
+export function atmosphericBody(options: HourlyOptions): Payload {
   const time = hourlyTimes(options.firstHour, options.hours);
   return {
     latitude: options.latitude ?? 39.371773,
     longitude: options.longitude ?? -9.33009,
     generationtime_ms: 0.17,
-    utc_offset_seconds: 0,
+    utc_offset_seconds: options.utcOffsetSeconds ?? 0,
     timezone: options.timezone ?? 'Europe/Lisbon',
-    timezone_abbreviation: 'GMT',
     elevation: 17,
     hourly_units: {
       time: 'unixtime',
@@ -65,7 +76,7 @@ export function atmosphericBody(options: HourlyOptions): Record<string, unknown>
     },
     hourly: {
       time,
-      temperature_2m: time.map((_, index) => 12 + (index % 24) / 4),
+      temperature_2m: time.map((_, index) => (index % 24 === 3 ? null : 12 + (index % 24) / 4)),
       snow_depth: time.map(() => 0),
       precipitation: time.map((_, index) => (index % 24 === 15 ? 0.4 : 0)),
       wind_speed_10m: time.map(() => 14.5),
@@ -74,18 +85,15 @@ export function atmosphericBody(options: HourlyOptions): Record<string, unknown>
 }
 
 /** A marine payload with complete waves, or entirely null waves as inland points return. */
-export function marineBody(
-  options: HourlyOptions & { waves?: 'complete' | 'null' },
-): Record<string, unknown> {
+export function marineBody(options: HourlyOptions & { waves?: 'complete' | 'null' }): Payload {
   const time = hourlyTimes(options.firstHour, options.hours);
   const allNull = options.waves === 'null';
   return {
     latitude: options.latitude ?? 39.375,
     longitude: options.longitude ?? -9.374985,
     generationtime_ms: 0.12,
-    utc_offset_seconds: 0,
+    utc_offset_seconds: options.utcOffsetSeconds ?? 0,
     timezone: options.timezone ?? 'Europe/Lisbon',
-    timezone_abbreviation: 'GMT',
     elevation: 17,
     hourly_units: { time: 'unixtime', wave_height: 'm', wave_period: 's' },
     hourly: {
@@ -97,10 +105,9 @@ export function marineBody(
 }
 
 /** Deep-copies a payload so a test can corrupt one field without touching the original. */
-export function clonePayload(body: Record<string, unknown>): {
-  [key: string]: unknown;
-  hourly: Record<string, unknown[]>;
-  hourly_units: Record<string, unknown>;
-} {
-  return structuredClone(body) as ReturnType<typeof clonePayload>;
+export function clonePayload(body: Payload): Payload {
+  return structuredClone(body);
 }
+
+/** Warsaw's offset in November, for payloads that echo it. */
+export const WARSAW_OFFSET = { timezone: 'Europe/Warsaw', utcOffsetSeconds: 3600 } as const;

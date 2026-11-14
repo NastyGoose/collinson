@@ -18,7 +18,10 @@ import {
   marineBody,
   PENICHE,
   WARSAW,
+  WARSAW_OFFSET,
+  type Payload,
 } from '../fixtures/open-meteo-weather';
+import { deferred } from '../support/deferred';
 import { FixedClock } from '../support/fixed-clock';
 import { fixtureFetch, jsonResponse, timeoutError } from '../support/fixture-fetch';
 
@@ -32,11 +35,16 @@ const HOUR_MS = 60 * 60 * 1000;
 
 type Answer = () => Response | Promise<Response>;
 
-/** Fixture Open-Meteo: one swappable answer per API, with every call counted. */
+/**
+ * Fixture Open-Meteo: one swappable answer per API, with every call counted.
+ * A request to any other host is recorded as a miss, which would otherwise look
+ * like a network outage, and fails the test.
+ */
 class FakeOpenMeteo {
   atmospheric: Answer = () => jsonResponse(atmosphericBody({ firstHour: PENICHE_TODAY }));
   marine: Answer = () => jsonResponse(marineBody({ firstHour: PENICHE_TODAY }));
   readonly calls = { atmospheric: 0, marine: 0 };
+  readonly misses: string[] = [];
   readonly fetch = fixtureFetch((url) => {
     if (url.hostname === 'api.open-meteo.com') {
       this.calls.atmospheric += 1;
@@ -46,18 +54,16 @@ class FakeOpenMeteo {
       this.calls.marine += 1;
       return this.marine();
     }
+    this.misses.push(url.toString());
     throw new Error(`no fixture for ${url.toString()}`);
   });
 }
 
-/** Answers that complete only when the test opens the gate. */
-function gate() {
-  let open!: () => void;
-  const opened = new Promise<void>((resolve) => {
-    open = resolve;
-  });
-  return { opened, open };
-}
+/** Payloads for Warsaw, which echo its zone and offset. */
+const warsawAtmospheric = (firstHour: string) =>
+  jsonResponse(atmosphericBody({ firstHour, ...WARSAW_OFFSET }));
+const warsawMarine = (firstHour: string, waves: 'complete' | 'null' = 'complete') =>
+  jsonResponse(marineBody({ firstHour, waves, ...WARSAW_OFFSET }));
 
 interface SnapshotRow {
   location_id: string;
@@ -83,6 +89,8 @@ describe('ForecastsService with PostgreSQL', () => {
   let moduleRef: TestingModule;
   let service: ForecastsService;
   let prisma: PrismaService;
+  /** Spy on snapshot reads, for tests that wait until every caller has read. */
+  let reads: jest.SpyInstance<Promise<unknown>> | undefined;
 
   async function createModule(): Promise<TestingModule> {
     const testingModule = await Test.createTestingModule({
@@ -108,7 +116,7 @@ describe('ForecastsService with PostgreSQL', () => {
 
   async function snapshotRows(): Promise<SnapshotRow[]> {
     return prisma.$queryRaw<SnapshotRow[]>`
-      SELECT * FROM forecast_snapshots ORDER BY location_id, source`;
+      SELECT * FROM forecast_snapshots ORDER BY location_id, source, schema_version`;
   }
 
   async function storeLocation(location: Location): Promise<void> {
@@ -135,6 +143,17 @@ describe('ForecastsService with PostgreSQL', () => {
     clock.set(NOON);
     provider = new FakeOpenMeteo();
   });
+
+  afterEach(() => {
+    reads?.mockRestore();
+    reads = undefined;
+    expect(provider.misses).toEqual([]);
+  });
+
+  function spyOnReads(): jest.SpyInstance<Promise<unknown>> {
+    reads = jest.spyOn(moduleRef.get(ForecastsRepository), 'findSnapshot');
+    return reads;
+  }
 
   describe('cold and warm requests', () => {
     it('fetches each source once and persists normalized weather with its metadata', async () => {
@@ -217,12 +236,8 @@ describe('ForecastsService with PostgreSQL', () => {
     });
 
     it('stores and reuses a timestamp-complete marine snapshot whose waves are all null', async () => {
-      provider.atmospheric = () =>
-        jsonResponse(atmosphericBody({ firstHour: WARSAW_14TH, timezone: 'Europe/Warsaw' }));
-      provider.marine = () =>
-        jsonResponse(
-          marineBody({ firstHour: WARSAW_14TH, timezone: 'Europe/Warsaw', waves: 'null' }),
-        );
+      provider.atmospheric = () => warsawAtmospheric(WARSAW_14TH);
+      provider.marine = () => warsawMarine(WARSAW_14TH, 'null');
 
       const first = await weatherFor(WARSAW);
       const second = await weatherFor(WARSAW);
@@ -238,38 +253,34 @@ describe('ForecastsService with PostgreSQL', () => {
 
   describe('concurrent requests', () => {
     it('issues one fetch per source for simultaneous misses', async () => {
-      const held = gate();
+      const held = deferred();
       provider.atmospheric = async () => {
-        await held.opened;
+        await held.promise;
         return jsonResponse(atmosphericBody({ firstHour: PENICHE_TODAY }));
       };
-      const reads = jest.spyOn(moduleRef.get(ForecastsRepository), 'findSnapshot');
+      const snapshotReads = spyOnReads();
 
       const requests = Array.from({ length: 5 }, () => weatherFor(PENICHE));
-      await allCallersPastTheirRead(reads, 10);
-      held.open();
+      // Five callers read both sources before any of them reaches a refresh.
+      await readsSettled(snapshotReads, 10);
+      held.resolve();
       const results = await Promise.all(requests);
 
       expect(provider.calls).toEqual({ atmospheric: 1, marine: 1 });
       expect(results.every((weather) => weather.atmospheric.freshness === 'FRESH')).toBe(true);
-      reads.mockRestore();
     });
   });
 
   describe('local midnight rollover', () => {
     it('refreshes a one-hour-old snapshot once the new date window is uncovered', async () => {
-      provider.atmospheric = () =>
-        jsonResponse(atmosphericBody({ firstHour: WARSAW_14TH, timezone: 'Europe/Warsaw' }));
-      provider.marine = () =>
-        jsonResponse(marineBody({ firstHour: WARSAW_14TH, timezone: 'Europe/Warsaw' }));
+      provider.atmospheric = () => warsawAtmospheric(WARSAW_14TH);
+      provider.marine = () => warsawMarine(WARSAW_14TH);
       clock.set('2026-11-14T22:30:00Z'); // 23:30 in Warsaw
       await weatherFor(WARSAW);
 
       clock.set('2026-11-14T23:30:00Z'); // 00:30 on the 15th in Warsaw
-      provider.atmospheric = () =>
-        jsonResponse(atmosphericBody({ firstHour: WARSAW_15TH, timezone: 'Europe/Warsaw' }));
-      provider.marine = () =>
-        jsonResponse(marineBody({ firstHour: WARSAW_15TH, timezone: 'Europe/Warsaw' }));
+      provider.atmospheric = () => warsawAtmospheric(WARSAW_15TH);
+      provider.marine = () => warsawMarine(WARSAW_15TH);
       const weather = await weatherFor(WARSAW);
 
       expect(weather.window.dates[0]).toBe('2026-11-16');
@@ -283,29 +294,28 @@ describe('ForecastsService with PostgreSQL', () => {
     });
 
     it('gives a caller after midnight one follow-up refresh when it joined an earlier window', async () => {
-      const held = gate();
+      const held = deferred();
       let attempt = 0;
       provider.atmospheric = async () => {
         attempt += 1;
         if (attempt === 1) {
-          await held.opened;
-          return jsonResponse(
-            atmosphericBody({ firstHour: WARSAW_14TH, timezone: 'Europe/Warsaw' }),
-          );
+          await held.promise;
+          return warsawAtmospheric(WARSAW_14TH);
         }
-        return jsonResponse(atmosphericBody({ firstHour: WARSAW_15TH, timezone: 'Europe/Warsaw' }));
+        return warsawAtmospheric(WARSAW_15TH);
       };
-      provider.marine = () =>
-        jsonResponse(marineBody({ firstHour: WARSAW_15TH, timezone: 'Europe/Warsaw' }));
-      const reads = jest.spyOn(moduleRef.get(ForecastsRepository), 'findSnapshot');
+      provider.marine = () => warsawMarine(WARSAW_15TH);
+      const snapshotReads = spyOnReads();
 
       clock.set('2026-11-14T22:59:00Z'); // 23:59 in Warsaw: window 15th–21st
       const beforeMidnight = weatherFor(WARSAW);
-      await allCallersPastTheirRead(reads, 2);
+      await readsSettled(snapshotReads, 2);
       clock.set('2026-11-14T23:01:00Z'); // 00:01 on the 15th: window 16th–22nd
+      // Counted from here: the first caller's refreshes also read the stored rows.
+      const readsBefore = snapshotReads.mock.calls.length;
       const afterMidnight = weatherFor(WARSAW);
-      await allCallersPastTheirRead(reads, 4);
-      held.open();
+      await readsSettled(snapshotReads, readsBefore + 2);
+      held.resolve();
       const [early, late] = await Promise.all([beforeMidnight, afterMidnight]);
 
       expect(provider.calls.atmospheric).toBe(2);
@@ -315,12 +325,11 @@ describe('ForecastsService with PostgreSQL', () => {
       expect(late.atmospheric.freshness).toBe('FRESH');
       const atmosphericRow = (await snapshotRows()).find((row) => row.source === 'ATMOSPHERIC');
       expect(atmosphericRow?.coverage_start).toEqual(new Date(WARSAW_15TH));
-      reads.mockRestore();
     });
   });
 
   describe('refresh failures', () => {
-    it('serves the previous snapshot as stale with the failure, retrying 5xx once', async () => {
+    it('serves the previous snapshots as stale after a 5xx and a rate limit', async () => {
       await weatherFor(PENICHE);
       clock.advance(7 * HOUR_MS);
       provider.atmospheric = () => jsonResponse({}, 503);
@@ -397,6 +406,11 @@ describe('ForecastsService with PostgreSQL', () => {
         'INSUFFICIENT_COVERAGE',
         () => atmosphericBody({ firstHour: PENICHE_TODAY, hours: 6 * 24 }),
       ],
+      [
+        'a payload missing one required hour mid-window',
+        'INSUFFICIENT_COVERAGE',
+        () => withoutHour(atmosphericBody({ firstHour: PENICHE_TODAY }), '2026-11-17T13:00:00Z'),
+      ],
     ])('preserves the previous snapshot after %s', async (_label, code, body) => {
       await weatherFor(PENICHE);
       const [before] = await snapshotRows();
@@ -411,19 +425,75 @@ describe('ForecastsService with PostgreSQL', () => {
       expect(after).toEqual(before);
     });
   });
+
+  describe('stored rows', () => {
+    it('does not reuse a snapshot stored under another schema version', async () => {
+      await weatherFor(PENICHE);
+      await prisma.$executeRaw`UPDATE forecast_snapshots SET schema_version = 0`;
+
+      const weather = await weatherFor(PENICHE);
+
+      expect(weather.atmospheric.freshness).toBe('FRESH');
+      expect(provider.calls).toEqual({ atmospheric: 2, marine: 2 });
+      expect((await snapshotRows()).map((row) => row.schema_version)).toEqual([0, 1, 0, 1]);
+    });
+
+    it('treats an unreadable stored row as missing and replaces it', async () => {
+      await weatherFor(PENICHE);
+      await prisma.$executeRaw`
+        UPDATE forecast_snapshots SET hourly = '{"time": "broken"}' WHERE source = 'ATMOSPHERIC'`;
+
+      const weather = await weatherFor(PENICHE);
+
+      expect(weather.atmospheric.freshness).toBe('FRESH');
+      expect(provider.calls).toEqual({ atmospheric: 2, marine: 1 });
+      const [atmosphericRow] = await snapshotRows();
+      expect(atmosphericRow.hourly.time).toHaveLength(192);
+    });
+
+    it('keeps one snapshot per location and source', async () => {
+      provider.atmospheric = () => warsawAtmospheric(WARSAW_14TH);
+      provider.marine = () => warsawMarine(WARSAW_14TH);
+      await weatherFor(WARSAW);
+      provider = new FakeOpenMeteo();
+
+      await weatherFor(PENICHE);
+      await weatherFor(WARSAW);
+
+      expect(provider.calls).toEqual({ atmospheric: 1, marine: 1 });
+      expect((await snapshotRows()).map((row) => `${row.location_id}:${row.source}`)).toEqual([
+        `${PENICHE.id}:ATMOSPHERIC`,
+        `${PENICHE.id}:MARINE`,
+        `${WARSAW.id}:ATMOSPHERIC`,
+        `${WARSAW.id}:MARINE`,
+      ]);
+    });
+  });
 });
 
+/** The payload without the row at `instant`, in the timestamps and every series alike. */
+function withoutHour(body: Payload, instant: string): Payload {
+  const index = body.hourly.time.indexOf(Date.parse(instant) / 1000);
+  const hourly = Object.fromEntries(
+    Object.entries(body.hourly).map(([name, values]) => [
+      name,
+      values.filter((_, position) => position !== index),
+    ]),
+  );
+  return { ...body, hourly };
+}
+
 /**
- * Waits until `reads` has been called `count` times and every read has settled,
- * then one more macrotask, so each caller has joined or started its refresh.
+ * Waits until `reads` has been called at least `count` times and every read has
+ * settled, then one more macrotask, so each caller has joined or started its refresh.
  */
-async function allCallersPastTheirRead(
+async function readsSettled(
   reads: jest.SpyInstance<Promise<unknown>>,
   count: number,
 ): Promise<void> {
   while (reads.mock.calls.length < count) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
-  await Promise.all(reads.mock.results.map((result) => result.value as Promise<unknown>));
+  await Promise.all(reads.mock.results.map((result): unknown => result.value));
   await new Promise((resolve) => setImmediate(resolve));
 }
