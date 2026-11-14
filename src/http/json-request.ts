@@ -71,14 +71,31 @@ async function requestOnce(
   url: URL,
   { label, timeoutMs, maxBytes = MAX_RESPONSE_BYTES }: JsonRequestOptions,
 ): Promise<unknown> {
-  let response: Response;
   let text: string;
   try {
-    response = await fetch(url, {
+    const response = await fetch(url, {
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(timeoutMs),
     });
-    text = await readText(response, maxBytes, label);
+    // The status decides first, so an error page of any size keeps its own kind
+    // and retry rule; its body is only read, cut short, for the log.
+    if (response.status === 429) {
+      throw new UpstreamRequestError(
+        'RATE_LIMITED',
+        `${label} rate limit reached (HTTP 429).`,
+        false,
+        await readPrefix(response),
+      );
+    }
+    if (!response.ok) {
+      throw new UpstreamRequestError(
+        'HTTP_ERROR',
+        `${label} answered HTTP ${response.status}.`,
+        response.status >= 500,
+        await readPrefix(response),
+      );
+    }
+    text = await readBody(response, maxBytes, label);
   } catch (error) {
     if (error instanceof UpstreamRequestError) {
       throw error;
@@ -97,23 +114,6 @@ async function requestOnce(
     });
   }
 
-  if (response.status === 429) {
-    throw new UpstreamRequestError(
-      'RATE_LIMITED',
-      `${label} rate limit reached (HTTP 429).`,
-      false,
-      text,
-    );
-  }
-  if (!response.ok) {
-    throw new UpstreamRequestError(
-      'HTTP_ERROR',
-      `${label} answered HTTP ${response.status}.`,
-      response.status >= 500,
-      text,
-    );
-  }
-
   try {
     const parsed: unknown = JSON.parse(text);
     return parsed;
@@ -128,24 +128,43 @@ async function requestOnce(
   }
 }
 
+/** Bytes of an error body kept for the log; the log line itself is cut further by forLog. */
+const ERROR_DETAIL_BYTES = 4 * 1024;
+
 /**
- * Reads the body as UTF-8, giving up as soon as it passes `maxBytes` — from the
+ * Reads a 2xx body as UTF-8, giving up as soon as it passes `maxBytes` — from the
  * declared length when there is one, otherwise while streaming — so an oversized
  * answer is never buffered whole.
  */
-async function readText(response: Response, maxBytes: number, label: string): Promise<string> {
-  const tooLarge = () =>
-    new UpstreamRequestError(
-      'TOO_LARGE',
-      `${label} answered with more than ${maxBytes} bytes.`,
-      false,
-    );
+async function readBody(response: Response, maxBytes: number, label: string): Promise<string> {
+  const tooLarge = new UpstreamRequestError(
+    'TOO_LARGE',
+    `${label} answered with more than ${maxBytes} bytes.`,
+    false,
+  );
   if (Number(response.headers.get('content-length')) > maxBytes) {
     discard(response.body?.cancel());
-    throw tooLarge();
+    throw tooLarge;
   }
+  const { text, complete } = await readUpTo(response, maxBytes);
+  if (!complete) {
+    throw tooLarge;
+  }
+  return text;
+}
+
+/** The start of an error body, for the log: never fails on size. */
+async function readPrefix(response: Response): Promise<string> {
+  return (await readUpTo(response, ERROR_DETAIL_BYTES)).text;
+}
+
+/** Streams at most `limit` bytes; `complete` is false when the body went on past it. */
+async function readUpTo(
+  response: Response,
+  limit: number,
+): Promise<{ text: string; complete: boolean }> {
   if (response.body === null) {
-    return '';
+    return { text: '', complete: true };
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -154,12 +173,12 @@ async function readText(response: Response, maxBytes: number, label: string): Pr
   for (;;) {
     const { done, value } = await reader.read();
     if (done) {
-      return text + decoder.decode();
+      return { text: text + decoder.decode(), complete: true };
     }
     received += value.byteLength;
-    if (received > maxBytes) {
+    if (received > limit) {
       discard(reader.cancel());
-      throw tooLarge();
+      return { text, complete: false };
     }
     text += decoder.decode(value, { stream: true });
   }

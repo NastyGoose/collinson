@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
-import { requestJson, UpstreamRequestError } from '../http/json-request';
+import { forLog, requestJson, UpstreamRequestError } from '../http/json-request';
 import { MAX_CANDIDATES, type Location } from './location';
 import { GeocodingUnavailableError, type GeocodingFailureKind } from './location.errors';
 
@@ -60,7 +60,15 @@ export class OpenMeteoGeocodingClient {
     } catch (error) {
       throw error instanceof UpstreamRequestError ? toGeocodingError(error) : error;
     }
-    return parseGeocodingResponse(body, countryCode);
+    try {
+      return parseGeocodingResponse(body, countryCode);
+    } catch (error) {
+      if (error instanceof GeocodingUnavailableError) {
+        const detail = typeof error.cause === 'string' ? `: ${forLog(error.cause)}` : '';
+        this.logger.warn(`Geocoding unavailable (${error.kind})${detail}`);
+      }
+      throw error;
+    }
   }
 }
 

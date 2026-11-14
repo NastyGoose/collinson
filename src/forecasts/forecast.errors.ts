@@ -8,7 +8,8 @@ export type SourceFailureCode =
 /**
  * A refresh of one weather source failed. It never escapes ForecastsService: it
  * becomes a STALE or UNAVAILABLE source status. The message is client-facing and
- * carries no provider text; provider details stay in `cause` for logs.
+ * carries no provider text. Provider details stay in `cause` for logs: the
+ * provider's own reason, or an UpstreamRequestError whose `detail` holds the body.
  */
 export class SourceRefreshError extends Error {
   /** True for a timeout, a network error or HTTP 5xx: a second attempt may succeed. */

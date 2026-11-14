@@ -39,7 +39,7 @@ describe('requestJson', () => {
     await expect(request(fetch, 64)).resolves.toEqual({ unit: '°C' });
   });
 
-  it('rejects a declared length over the limit before reading the body', async () => {
+  it('rejects a declared length over the limit without retrying', async () => {
     const fetch = fixtureFetch(
       () => new Response('{}', { status: 200, headers: { 'content-length': '100' } }),
     );
@@ -49,6 +49,40 @@ describe('requestJson', () => {
     expect(error.kind).toBe('TOO_LARGE');
     expect(error.transient).toBe(false);
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the status of an oversized error page, retrying a 5xx', async () => {
+    const fetch = fixtureFetch(
+      () => new Response('x'.repeat(100), { status: 503, headers: { 'content-length': '100' } }),
+    );
+
+    const error = await rejected(request(fetch, 10), UpstreamRequestError);
+
+    expect(error.kind).toBe('HTTP_ERROR');
+    expect(error.transient).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(error.detail).toHaveLength(100);
+  });
+
+  it('reports a timeout while the body streams as a timeout, and retries it', async () => {
+    const stalled = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"partial":'));
+          },
+          pull(controller) {
+            controller.error(new DOMException('The operation timed out.', 'TimeoutError'));
+          },
+        }),
+        { status: 200 },
+      );
+    const fetch = fixtureFetch(stalled);
+
+    const error = await rejected(request(fetch), UpstreamRequestError);
+
+    expect(error.kind).toBe('TIMEOUT');
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it('stops reading a streamed body once it passes the limit', async () => {
@@ -73,7 +107,7 @@ describe('requestJson', () => {
 
 describe('forLog', () => {
   it('strips control and format characters and cuts the text short', () => {
-    const logged = forLog(`a\nb\u001b[31m​c${'x'.repeat(300)}`);
+    const logged = forLog(`a\nb\u001b[31m\u200bc${'x'.repeat(300)}`);
 
     expect(logged.startsWith('a b [31m c')).toBe(true);
     expect(logged).toHaveLength(200);
