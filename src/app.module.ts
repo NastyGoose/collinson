@@ -3,6 +3,8 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
+import { ActivityForecastModule } from './activity-forecast/activity-forecast.module';
+import { formatGraphQLError } from './activity-forecast/graphql-errors';
 import { ClockModule } from './clock/clock.module';
 import { validateEnv } from './config/env';
 import { ForecastsModule } from './forecasts/forecasts.module';
@@ -19,12 +21,16 @@ import { PrismaModule } from './prisma/prisma.module';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       typePaths: [join(__dirname, '**/*.graphql')],
+      // Clients get documented codes and safe messages only (SPEC-04).
+      includeStacktraceInErrorResponses: false,
+      formatError: formatGraphQLError,
     }),
     PrismaModule,
     ClockModule,
     HealthModule,
     LocationsModule,
     ForecastsModule,
+    ActivityForecastModule,
   ],
 })
 export class AppModule {}
