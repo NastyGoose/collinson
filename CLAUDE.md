@@ -1,0 +1,31 @@
+# Collinson project instructions for Claude Code
+
+Read this file before implementing a Collinson ticket. The assessment is a single backend service that accepts a city or town and ranks seven dates for each of skiing, surfing, outdoor sightseeing and indoor sightseeing. The brief requires Node.js, GraphQL, Open-Meteo and persisted weather. It asks for a public GitHub submission with a short README and an authentic record of how decisions were made with AI assistance.
+
+## Sources and scope
+
+- Start with the current Linear ticket and its acceptance criteria. [Linear project](https://linear.app/archiview/project/collinson-seven-day-activity-weather-ranking-68ff31c71b4c)
+- Use the finalized specs for expected behavior, the Technical Design for the exact GraphQL SDL and implementation details, and the Implementation Plan for dependencies and acceptance scenarios. [Specs](https://app.notion.com/p/417a2e4a6cca81c7b5a8ff5e9cb63aa8) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8) · [Implementation Plan](https://app.notion.com/p/417a2e4a6cca815282a4d9b3dcfd62b0)
+- Read the relevant [ADRs](docs/adr/README.md) for accepted decisions, rationale and evidence. [`docs/assessment-specifications.md`](docs/assessment-specifications.md) is the historical initial draft. The original assessment files stay local in `docs/reference/` and are not version-controlled. For conflicts with the draft, use the finalized specs and Technical Design. If current sources disagree on observable behavior, surface the discrepancy before implementing that part and continue with independent work.
+- Keep the ticket focused. The assessment scope is the backend and reproducible local delivery. Frontend, accounts, booking, resort or venue lookup, beach discovery, personalized scoring, historical analytics, distributed workers and hosted deployment are outside the planned work.
+
+## Implementation rules
+
+- Keep the NestJS resolver focused on orchestration and GraphQL mapping. Locations owns geocoding and stable IDs. Forecasts owns provider adapters, normalization, persistence and refresh. Activities computes scores from normalized weather with no I/O. Use an injectable clock for request time and freshness.
+- Require exactly one city or stored location ID. Trim and validate the city, apply the optional country filter only to city searches, return ambiguity explicitly, and resolve known IDs without geocoding. Keep genuine empty searches distinct from provider failures.
+- Freeze the request instant before location resolution. Derive tomorrow and the next six dates in the selected IANA timezone. Convert provider Unix timestamps by that timezone for each instant. Check actual coverage of the required local hours and preserve measurement nulls separately.
+- Keep atmospheric and marine data independent. Persist normalized weather in PostgreSQL on the versioned snapshot key. Check age and coverage together. Validate every replacement before an atomic upsert. Keep provider I/O outside database transactions. After a shared refresh, check coverage for each caller's own date window.
+- Preserve four groups of seven dates for a resolved location through partial or total weather-source failure. Return typed source status and day-level availability. An unavailable day has null score and rank. A valid, up-to-date marine snapshot can have no usable wave data.
+- Keep scoring deterministic, versioned and explainable. Use the scoring v1 rules and precedence in [ADR 0005](docs/adr/0005-deterministic-activity-scoring.md). Apply the marine limit only after source and measurement checks. Keep zero measurements intact. Use the score explanations to describe weather suitability for a generic visitor.
+
+## Verification and handoff
+
+- Use checked-in Prisma migrations for development and isolated PostgreSQL tests. Keep local setup reproducible with Compose and document the commands once the scripts exist. Use a fixed clock and controlled provider fixtures in automated tests. Keep live-provider smoke checks optional and separate from CI.
+- Match verification to the ticket. Cover scoring and calendar edges with unit tests, migrations and durable snapshot behavior with integration tests, and the typed GraphQL contract with E2E tests. Report the actual commands, outcomes and any verification gaps.
+- Keep one implementation ticket per PR and link the ticket. Keep dated notes on material assumptions, alternatives, AI contributions and changes of mind as they occur. When a decision changes, update the affected spec or design and document the change in an ADR. Keep scratch notes, secrets and personal material out of the submission.
+- For the final submission, verify the README from a clean checkout, including setup, migrations, run and test commands, GraphQL examples, assumptions and Open-Meteo attribution. Review content before publication. Assessor notification is a separate submission action that requires explicit authorization.
+- End any spec-finalization handoff with a copy-ready developer prompt covering the workspace, first ready ticket and acceptance criteria, source links, scope and verification.
+
+Reusable Claude skills live in [`.claude/skills/`](.claude/skills/) ([guide](.claude/README.md)). Task working files go in `.claude-tmp/`, which is git-ignored. Repository setup ([ARC-51](https://linear.app/archiview/issue/ARC-51/dev-initialize-the-repository-and-organize-project-files)) is done; the next application ticket is [ARC-44](https://linear.app/archiview/issue/ARC-44/dev-bootstrap-nestjs-postgresql-and-prisma).
+
+Start implementation with [ARC-44](https://linear.app/archiview/issue/ARC-44/dev-bootstrap-nestjs-postgresql-and-prisma).

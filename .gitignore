@@ -1,0 +1,33 @@
+# Local reference material (kept on disk, pending review for inclusion)
+/docs/reference/
+
+# Claude Code task scratch files and local settings
+.claude-tmp/
+.claude/settings.local.json
+.playwright-mcp/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+
+# Build and test outputs
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

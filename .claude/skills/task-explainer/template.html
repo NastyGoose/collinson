@@ -1,0 +1,541 @@
+<!-- guide: Starting point for task-explainer and pr-walkthrough pages. Keep the <style> and <script> verbatim, replace every placeholder ({{...}}) and sample block, drop components the page does not need, and delete every guide comment before publishing. -->
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap">
+<style>
+/* Layout: one reading column (~720px) with a sticky contents rail on wide screens; diagrams sit in their own scrollers */
+:root {
+  --bg: #f2f5f6;
+  --surface: #ffffff;
+  --sunken: #e8edf0;
+  --ink: #13212b;
+  --muted: #566874;
+  --line: #d3dce1;
+  --accent: #0a6a85;
+  --accent-soft: #dcecf1;
+  --ok: #1d7448;
+  --ok-soft: #dcefe4;
+  --bad: #b0281f;
+  --bad-soft: #f7e1de;
+  --warn: #8a5a00;
+  --warn-soft: #f5ead3;
+  --font-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --font-body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418;
+    --surface: #141c21;
+    --sunken: #1a242a;
+    --ink: #e2e9ed;
+    --muted: #95a6b1;
+    --line: #29363e;
+    --accent: #5bbfdc;
+    --accent-soft: #15313b;
+    --ok: #5cc892;
+    --ok-soft: #133024;
+    --bad: #ff8277;
+    --bad-soft: #3a1b18;
+    --warn: #e6ad4a;
+    --warn-soft: #342712;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418;
+  --surface: #141c21;
+  --sunken: #1a242a;
+  --ink: #e2e9ed;
+  --muted: #95a6b1;
+  --line: #29363e;
+  --accent: #5bbfdc;
+  --accent-soft: #15313b;
+  --ok: #5cc892;
+  --ok-soft: #133024;
+  --bad: #ff8277;
+  --bad-soft: #3a1b18;
+  --warn: #e6ad4a;
+  --warn-soft: #342712;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.62 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 40px 16px 72px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+@media (min-width: 1000px) {
+  .page { grid-template-columns: 200px minmax(0, 720px); gap: 64px; padding-inline: 32px; }
+}
+
+/* contents */
+.toc { font-size: 14px; }
+.toc-title { font: 600 12px/1 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.toc a { color: var(--muted); text-decoration: none; }
+.toc a:hover { color: var(--ink); }
+@media (min-width: 1000px) {
+  .toc { grid-row: 1 / span 2; }
+  .toc-inner { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 32px); }
+  .toc ol { flex-direction: column; gap: 9px; }
+}
+
+main { min-width: 0; display: grid; gap: 56px; }
+main > header { display: grid; gap: 16px; }
+
+.eyebrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font: 500 13px/1 var(--font-mono); color: var(--muted); }
+h1 {
+  font: 600 clamp(28px, 6vw, 40px)/1.15 var(--font-display);
+  letter-spacing: -.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+.lede { font-size: 19px; line-height: 1.5; margin: 0; max-width: 62ch; text-wrap: pretty; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); margin: 0; padding: 0; list-style: none; }
+
+section { display: grid; gap: 16px; scroll-margin-top: 24px; }
+h2 { font: 700 23px/1.25 var(--font-body); margin: 0; text-wrap: balance; }
+h2 .tag { font: 500 13px/1 var(--font-mono); color: var(--muted); display: block; margin-bottom: 8px; letter-spacing: .02em; }
+h3 { font: 600 17px/1.35 var(--font-body); margin: 0; }
+p { margin: 0; max-width: 66ch; text-wrap: pretty; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+
+code, .mono { font-family: var(--font-mono); font-size: .86em; }
+:not(pre) > code { background: var(--sunken); padding: .12em .4em; border-radius: 4px; overflow-wrap: anywhere; }
+pre {
+  margin: 0;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font: 400 13.5px/1.6 var(--font-mono);
+}
+pre .c { color: var(--muted); }
+pre .bad { color: var(--bad); }
+pre .ok { color: var(--ok); }
+
+.scope {
+  display: inline-block;
+  font: 500 12.5px/1.2 var(--font-mono);
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  white-space: nowrap;
+}
+.scope-id { border-color: var(--accent); color: var(--accent); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 12px/1 var(--font-body);
+  padding: 5px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--sunken); color: var(--muted);
+}
+.pill-ok { background: var(--ok-soft); color: var(--ok); }
+.pill-bad { background: var(--bad-soft); color: var(--bad); }
+.pill-warn { background: var(--warn-soft); color: var(--warn); }
+
+/* summary */
+.summary {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px 22px;
+  display: grid;
+  gap: 14px;
+}
+.summary p { font-size: 17px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.fact { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.fact-label { font: 600 12px/1.2 var(--font-body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.fact-num { font: 600 20px/1.2 var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* glossary */
+.glossary { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line); }
+.glossary > div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+@media (min-width: 640px) { .glossary > div { grid-template-columns: 170px minmax(0, 1fr); } }
+.glossary dt { font-weight: 600; }
+.glossary dd { margin: 0; color: var(--ink); }
+
+/* flow diagram */
+.flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 26px; }
+.node {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 16px 13px;
+  display: grid;
+  gap: 4px;
+}
+.flow > .node + .node::before {
+  content: ""; position: absolute; left: 31px; top: -27px; height: 19px;
+  border-left: 2px solid var(--line);
+}
+.flow > .node + .node::after {
+  content: ""; position: absolute; left: 27px; top: -9px; width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 7px solid var(--muted);
+}
+.node-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.node-title { font: 500 14px/1.4 var(--font-mono); overflow-wrap: anywhere; min-width: 0; }
+.node-body { font-size: 15px; color: var(--ink); }
+.node-body .scopes { display: inline-flex; flex-wrap: wrap; gap: 5px; vertical-align: middle; }
+.node-quiet { background: transparent; border-style: dashed; }
+
+.branch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 640px) { .branch { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.branch-col { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.branch-label { font: 600 12px/1.3 var(--font-body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.branch .node { gap: 6px; }
+.check { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; font-size: 14.5px; align-items: baseline; }
+.check .q { color: var(--muted); }
+
+/* before / after */
+.compare { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+@media (min-width: 760px) { .compare { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.compare-col { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.compare-label { font: 600 12px/1.3 var(--font-body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+
+/* svg map */
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.figure { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; }
+.map { display: block; width: 100%; min-width: 560px; height: auto; }
+.map .box { fill: var(--sunken); stroke: var(--line); stroke-width: 1; }
+.map .box-title { fill: var(--ink); font: 600 15px var(--font-body); }
+.map .box-sub { fill: var(--muted); font: 400 11.5px var(--font-mono); }
+.map .link { stroke-width: 2; fill: none; }
+.map .link-ok { stroke: var(--muted); }
+.map .link-bad { stroke: var(--bad); stroke-dasharray: 7 5; }
+.map .m-ok { fill: var(--muted); }
+.map .m-bad { fill: var(--bad); }
+.map .link-label { fill: var(--muted); font: 400 12px var(--font-body); }
+.map .label-bg { fill: var(--bad-soft); }
+.map .link-label-bad { fill: var(--bad); font: 600 12.5px var(--font-body); }
+.figcaption { font-size: 13.5px; color: var(--muted); }
+
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.chain li { display: flex; align-items: center; gap: 8px; }
+.chain li + li::before { content: "→"; color: var(--muted); }
+.chain span { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; font-size: 14.5px; }
+.chain li:last-child span { border-color: var(--bad); color: var(--bad); font-weight: 600; }
+
+.note {
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+.note-title { font-weight: 600; }
+
+/* tables */
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 12px/1.3 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-bottom-color: var(--ink); }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.table-wrap table { min-width: 560px; }
+.table-wrap tr:last-child td { border-bottom: 0; }
+tr.hit td { background: var(--bad-soft); }
+
+/* file lists */
+.files { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.files li { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.files .path { font: 500 13.5px/1.4 var(--font-mono); overflow-wrap: anywhere; }
+.files .lines { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.files .ln { font: 500 12px/1 var(--font-mono); background: var(--bad-soft); color: var(--bad); padding: 4px 6px; border-radius: 4px; }
+.files .ln-plain { background: var(--sunken); color: var(--muted); }
+.files .add { font: 500 12px/1 var(--font-mono); color: var(--ok); font-variant-numeric: tabular-nums; }
+.files .del { font: 500 12px/1 var(--font-mono); color: var(--bad); font-variant-numeric: tabular-nums; }
+.area { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+/* acceptance */
+.criteria { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.criteria li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; }
+.criteria li::before { content: ""; width: 14px; height: 14px; margin-top: 5px; border: 2px solid var(--accent); border-radius: 3px; }
+
+/* steps */
+.steps-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.progress { font: 500 13px/1 var(--font-mono); color: var(--muted); }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; border-top: 1px solid var(--line); }
+.step { counter-increment: step; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 4px 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.step-num { font: 600 15px/1.5 var(--font-display); color: var(--accent); }
+.step-num::before { content: counter(step); }
+.step-body { display: grid; gap: 8px; min-width: 0; }
+.step-label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-weight: 600; }
+.step-label input { width: 17px; height: 17px; margin: 3px 0 0; accent-color: var(--accent); flex: none; }
+.step-label input:checked + span { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.step ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+
+/* gotchas */
+.gotchas { display: grid; gap: 12px; }
+.gotcha { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px 14px; }
+.gotcha-key { font: 600 15px/1 var(--font-display); width: 30px; height: 30px; border-radius: 50%; background: var(--warn-soft); color: var(--warn); display: grid; place-items: center; }
+.gotcha-body { display: grid; gap: 6px; min-width: 0; }
+
+.plain { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.sources { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
+.sources code { font-size: 12.5px; }
+
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<!-- guide: lang="en" by default, lang="ru" with --ru. -->
+<div class="page" lang="{{LANG}}">
+  <nav class="toc" aria-label="{{Contents}}">
+    <div class="toc-inner">
+      <p class="toc-title">{{Contents}}</p>
+      <ol>
+        <!-- guide: one link per section, short labels, same order as the sections. -->
+        <li><a href="#summary">{{Summary}}</a></li>
+        <li><a href="#today">{{How it works today}}</a></li>
+      </ol>
+    </div>
+  </nav>
+
+  <main>
+    <header>
+      <div class="eyebrow"><span>{{KEY}}</span><span aria-hidden="true">·</span><span>{{Issue type}}</span><span aria-hidden="true">·</span><span class="pill pill-warn">{{Status}}</span></div>
+      <h1>{{TITLE}}</h1>
+      <p class="lede">{{One or two sentences: the problem and what the change does about it.}}</p>
+      <ul class="meta">
+        <li><a href="{{TICKET_URL}}">{{KEY}} in the tracker</a></li>
+        <li>{{Epic}} <a href="{{EPIC_URL}}">{{EPIC}}</a></li>
+        <li>{{Checked against origin/main on DATE}}</li>
+      </ul>
+    </header>
+
+    <section id="summary" aria-labelledby="summary-h">
+      <h2 id="summary-h">{{Summary}}</h2>
+      <div class="summary">
+        <p>{{Plain-language problem, 2 to 4 short sentences.}}</p>
+        <div class="facts">
+          <!-- guide: 2 to 4 facts. Use .fact-num for a figure (files changed, tests added). -->
+          <div class="fact"><span class="fact-label">{{Today}}</span><span>{{Current exposure}}</span></div>
+          <div class="fact"><span class="fact-label">{{Goal}}</span><span>{{What done looks like}}</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="glossary" aria-labelledby="glossary-h">
+      <h2 id="glossary-h">{{Glossary}}</h2>
+      <dl class="glossary">
+        <div><dt>{{term}}</dt><dd>{{Definition in the project's words. Inline code and .scope chips are fine.}}</dd></div>
+      </dl>
+    </section>
+
+    <section id="today" aria-labelledby="today-h">
+      <h2 id="today-h">{{How it works today}}</h2>
+      <!-- guide: one .node per real hop in the call path. A pill marks where it goes wrong; .node-quiet (dashed) groups checks or notes. -->
+      <ol class="flow">
+        <li class="node">
+          <div class="node-head"><span class="node-title">{{Caller → POST /route}}</span></div>
+          <div class="node-body">{{What arrives}} <span class="scopes"><span class="scope scope-id">{{identity}}</span><span class="scope">{{capability}}</span></span></div>
+        </li>
+        <li class="node">
+          <div class="node-head"><span class="node-title">{{Function.name()}}</span><span class="pill pill-bad">{{what goes wrong}}</span></div>
+          <div class="node-body">{{What it does, in one or two sentences.}}</div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="p1" aria-labelledby="p1-h">
+      <h2 id="p1-h"><span class="tag">{{Problem 1}}</span>{{Problem in a phrase}}</h2>
+      <!-- guide: SVG map for relationships between actors/tenants. Keep viewBox 640 wide; boxes 180x56 at x=16 and x=444; label every hypothetical actor as hypothetical in .figcaption. -->
+      <div class="figure">
+        <div class="scroll">
+          <svg class="map" viewBox="0 0 640 250" role="img" aria-labelledby="map-t">
+            <title id="map-t">{{What the diagram shows, in one sentence}}</title>
+            <defs>
+              <marker id="ah-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="m-ok"></path></marker>
+              <marker id="ah-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="m-bad"></path></marker>
+            </defs>
+            <line x1="196" y1="58" x2="440" y2="58" class="link link-ok" marker-end="url(#ah-ok)"></line>
+            <text x="318" y="47" class="link-label" text-anchor="middle">{{allowed link}}</text>
+            <line x1="196" y1="184" x2="440" y2="74" class="link link-bad" marker-end="url(#ah-bad)"></line>
+            <rect x="226" y="114" width="184" height="26" rx="13" class="label-bg"></rect>
+            <text x="318" y="131" class="link-label-bad" text-anchor="middle">{{the leak}}</text>
+            <rect x="16" y="30" width="180" height="56" rx="8" class="box"></rect>
+            <text x="32" y="54" class="box-title">{{Actor A}}</text>
+            <text x="32" y="74" class="box-sub">{{identity}}</text>
+            <rect x="16" y="170" width="180" height="56" rx="8" class="box"></rect>
+            <text x="32" y="194" class="box-title">{{Actor B}}</text>
+            <text x="32" y="214" class="box-sub">{{identity}}</text>
+            <rect x="444" y="30" width="180" height="56" rx="8" class="box"></rect>
+            <text x="460" y="54" class="box-title">{{Resource A}}</text>
+            <text x="460" y="74" class="box-sub">{{owner}}</text>
+          </svg>
+        </div>
+        <p class="figcaption">{{Caption; name hypothetical actors as such.}}</p>
+      </div>
+      <p>{{The same story in words, citing <code>path:line</code>.}}</p>
+      <ol class="chain" aria-label="{{Consequence chain}}">
+        <li><span>{{step}}</span></li>
+        <li><span>{{final harm}}</span></li>
+      </ol>
+      <div class="note"><span class="note-title">{{Why fix it now}}</span><p>{{Reason}}</p></div>
+      <!-- guide: a matrix of inputs and outcomes goes in a table; mark the bad rows with class="hit". -->
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>{{Input}}</th><th>{{Outcome}}</th></tr></thead>
+          <tbody>
+            <tr><td>{{fine case}}</td><td><span class="pill pill-ok">{{ok}}</span></td></tr>
+            <tr class="hit"><td>{{bad case}}</td><td><span class="pill pill-bad">{{bad}}</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- guide: scattered literals or changed files. .ln = flagged line, .ln-plain = neutral line, .add/.del = diff counts. -->
+      <ul class="files">
+        <li><span class="path">{{src/path/file.ts}}</span><span class="lines"><span class="ln">{{54}}</span><span class="ln-plain ln">{{120}}</span></span></li>
+        <li><span class="path">{{src/path/other.ts}}</span><span class="add">+{{12}}</span><span class="del">−{{3}}</span></li>
+      </ul>
+    </section>
+
+    <section id="target" aria-labelledby="target-h">
+      <h2 id="target-h">{{How it should work}}</h2>
+      <ol class="flow">
+        <li class="node"><div class="node-head"><span class="node-title">{{hop}}</span><span class="pill pill-ok">{{fixed}}</span></div><div class="node-body">{{what changes here}}</div></li>
+      </ol>
+      <div class="branch">
+        <div class="branch-col">
+          <span class="branch-label">{{Case A}}</span>
+          <div class="node">
+            <div class="check"><span class="q">1.</span><span>{{check result}}</span></div>
+            <div class="node-head"><span class="node-title">{{403 error.code}}</span><span class="pill pill-bad">{{rejected}}</span></div>
+          </div>
+        </div>
+        <div class="branch-col">
+          <span class="branch-label">{{Case B}}</span>
+          <div class="node">
+            <div class="check"><span class="q">1.</span><span>{{check result}}</span></div>
+            <div class="node-head"><span class="node-title">{{201}}</span><span class="pill pill-ok">{{accepted}}</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- guide: pr-walkthrough uses this instead of separate today/target sections. -->
+    <section id="before-after" aria-labelledby="before-after-h">
+      <h2 id="before-after-h">{{Before and after}}</h2>
+      <div class="compare">
+        <div class="compare-col"><span class="compare-label">{{Before}}</span><ol class="flow"><li class="node"><div class="node-head"><span class="node-title">{{hop}}</span></div></li></ol></div>
+        <div class="compare-col"><span class="compare-label">{{After}}</span><ol class="flow"><li class="node"><div class="node-head"><span class="node-title">{{hop}}</span></div></li></ol></div>
+      </div>
+    </section>
+
+    <!-- guide: pr-walkthrough "What changed, by area": one .area per purpose. -->
+    <section id="changes" aria-labelledby="changes-h">
+      <h2 id="changes-h">{{What changed}}</h2>
+      <div class="area">
+        <h3>{{Area}}</h3>
+        <p>{{Why this area changed.}}</p>
+        <ul class="files"><li><span class="path">{{path}}</span><span class="add">+{{n}}</span><span class="del">−{{n}}</span></li></ul>
+      </div>
+    </section>
+
+    <section id="criteria" aria-labelledby="criteria-h">
+      <h2 id="criteria-h">{{Acceptance criteria}}</h2>
+      <ul class="criteria"><li><span>{{Criterion, paraphrased plainly.}}</span></li></ul>
+    </section>
+
+    <section id="steps" aria-labelledby="steps-h">
+      <div class="steps-head">
+        <h2 id="steps-h">{{Steps}}</h2>
+        <!-- guide: the script fills #steps-count; the "of" word comes from data-of. -->
+        <span class="progress">{{Done}}: <span id="steps-count" data-of="{{of}}">0</span></span>
+      </div>
+      <p class="muted small">{{Ticks are saved in this browser only.}}</p>
+      <!-- guide: data-storage-key must be unique per page, e.g. proj-123-explainer-en. Every checkbox needs a stable id. -->
+      <ol class="steps" data-storage-key="{{key-kind-lang}}">
+        <li class="step">
+          <span class="step-num" aria-hidden="true"></span>
+          <div class="step-body">
+            <label class="step-label" for="s1"><input type="checkbox" id="s1"><span>{{One action}}</span></label>
+            <p>{{Paths and detail.}}</p>
+<pre><span class="c">// {{comment}}</span>
+{{code where the shape matters}}</pre>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="gotchas" aria-labelledby="gotchas-h">
+      <h2 id="gotchas-h">{{Gotchas the ticket does not mention}}</h2>
+      <div class="gotchas">
+        <div class="gotcha" id="g-a">
+          <span class="gotcha-key" aria-hidden="true">A</span>
+          <div class="gotcha-body"><h3>{{Gotcha in a phrase}}</h3><p>{{Evidence with <code>path:line</code>, and what to do.}}</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="decisions" aria-labelledby="decisions-h">
+      <h2 id="decisions-h">{{Decisions left to you}}</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>{{Question}}</th><th>{{Recommendation}}</th></tr></thead>
+          <tbody><tr><td><strong>{{question}}</strong></td><td>{{recommendation and the reason}}</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="out-of-scope" aria-labelledby="out-of-scope-h">
+      <h2 id="out-of-scope-h">{{Out of scope}}</h2>
+      <ul class="plain"><li>{{item}}</li></ul>
+    </section>
+
+    <section id="sources" aria-labelledby="sources-h">
+      <h2 id="sources-h">{{Sources}}</h2>
+      <ul class="sources"><li><code>{{path}}</code></li></ul>
+      <footer>{{Line numbers are from origin/main (or the PR head SHA) on DATE and may move.}}</footer>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var list = document.querySelector(".steps")
+  var out = document.getElementById("steps-count")
+  if (!list || !out) return
+  var KEY = list.getAttribute("data-storage-key") || "task-steps"
+  var OF = out.getAttribute("data-of") || "of"
+  var boxes = Array.prototype.slice.call(list.querySelectorAll("input[type=checkbox]"))
+  var saved = {}
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {} } catch (e) { saved = {} }
+  function render() {
+    var done = boxes.filter(function (b) { return b.checked }).length
+    out.textContent = done + " " + OF + " " + boxes.length
+  }
+  function save() {
+    var state = {}
+    boxes.forEach(function (b) { if (b.checked) state[b.id] = 1 })
+    try { localStorage.setItem(KEY, JSON.stringify(state)) } catch (e) {}
+  }
+  boxes.forEach(function (b) {
+    if (saved[b.id]) b.checked = true
+    b.addEventListener("change", function () { save(); render() })
+  })
+  render()
+})()
+</script>
