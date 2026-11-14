@@ -2,8 +2,8 @@
 // The connection URL comes from prisma.config.ts (DATABASE_URL); the runtime client
 // connects through the @prisma/adapter-pg driver adapter in PrismaService.
 //
-// Domain tables arrive with their tickets: locations and search cache (ARC-45),
-// forecast snapshots (ARC-46). See docs/adr/0002-postgresql-prisma-persistence.md.
+// Tables use snake_case names through @@map / @map. Forecast snapshots arrive with
+// ARC-46. See docs/adr/0002-postgresql-prisma-persistence.md.
 
 generator client {
   provider     = "prisma-client"
@@ -13,4 +13,56 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// A geocoded place, keyed by its stable Open-Meteo geocoding ID (a positive
+/// integer kept as decimal text, so it stays opaque to GraphQL clients).
+model Location {
+  id        String   @id
+  name      String
+  country   String
+  /// First-level administrative region (Open-Meteo admin1), when the provider has one.
+  region    String?
+  latitude  Float
+  longitude Float
+  /// IANA time zone name, e.g. Europe/Berlin.
+  timezone  String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  searchResults LocationSearchResult[]
+
+  @@map("locations")
+}
+
+/// A cached geocoding search, keyed by the normalized query and country filter.
+/// countryCode is '' for an unfiltered search: PostgreSQL treats NULLs as distinct,
+/// so a nullable key column could not be upserted.
+model LocationSearch {
+  query       String
+  countryCode String   @map("country_code")
+  fetchedAt   DateTime @map("fetched_at") @db.Timestamptz(3)
+  /// 24 hours after fetchedAt for matches, one hour for a genuine empty result.
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  results LocationSearchResult[]
+
+  @@id([query, countryCode])
+  @@map("location_searches")
+}
+
+/// The provider's candidate order for a cached search. An empty search has no rows.
+model LocationSearchResult {
+  query       String
+  countryCode String @map("country_code")
+  /// Zero-based position in the provider's order.
+  position    Int
+  locationId  String @map("location_id")
+
+  search   LocationSearch @relation(fields: [query, countryCode], references: [query, countryCode], onDelete: Cascade)
+  location Location       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@id([query, countryCode, position])
+  @@index([locationId])
+  @@map("location_search_results")
 }
