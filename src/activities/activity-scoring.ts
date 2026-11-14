@@ -280,12 +280,17 @@ function describeOutdoor(inputs: ReturnType<typeof outdoor>['inputs']): string {
 }
 
 /**
- * Names the factor that costs the most points. A day that rounds to 100 is
- * called ideal, so the text never blames a factor whose printed value is ideal.
+ * Names the factor that costs the most points. A day whose small losses round
+ * away to 100 is called close to ideal rather than blamed on one factor.
  */
 function limitation(score: WeightedScore): string {
-  const worst = roundScore(score.total) === 100 ? undefined : limitingComponent(score);
-  return worst === undefined ? 'every factor is ideal' : `${worst.label} lowers the score most`;
+  const worst = limitingComponent(score);
+  if (worst === undefined) {
+    return 'every factor is ideal';
+  }
+  return roundScore(score.total) === 100
+    ? 'conditions are close to ideal'
+    : `${worst.label} lowers the score most`;
 }
 
 function hourList(hours: readonly number[]): string {
@@ -315,8 +320,8 @@ function capitalize(text: string): string {
 const celsius = (value: number) => `${fixed(value, 1)} °C`;
 const metres = (value: number) => `${fixed(value, 2)} m`;
 /**
- * Snow depth to the millimetre: Open-Meteo reports it in 0.01 m steps, so a
- * mean of one such reading over nine hours still shows as non-zero.
+ * Snow depth to the millimetre, so a thin cover, such as one 0.01 m reading in
+ * nine hours, never reads as bare ground.
  */
 const snowDepth = (value: number) =>
   value > 0 && Number(fixed(value, 3)) === 0 ? 'under 0.001 m' : `${fixed(value, 3)} m`;
