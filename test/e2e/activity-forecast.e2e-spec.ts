@@ -256,8 +256,6 @@ describe('activity forecast GraphQL contract (e2e)', () => {
   }
 
   beforeAll(async () => {
-    // Refresh failures log a warning by design; keep the test output readable.
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       // Delegates to the current test's fixtures, which beforeEach replaces.
       .overrideProvider(HTTP_FETCH)
@@ -271,18 +269,20 @@ describe('activity forecast GraphQL contract (e2e)', () => {
   });
 
   beforeEach(async () => {
+    // Refresh failures log a warning by design; keep the test output readable.
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     upstream = new FakeOpenMeteo();
     clock.set(NOON);
     await prisma.$executeRaw`TRUNCATE forecast_snapshots, location_search_results, location_searches, locations`;
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     expect(upstream.misses).toEqual([]);
   });
 
   afterAll(async () => {
     await app.close();
-    jest.restoreAllMocks();
   });
 
   it('serves the Technical Design SDL', () => {
@@ -406,7 +406,8 @@ describe('activity forecast GraphQL contract (e2e)', () => {
   it('reports a snapshot storage failure as STORAGE_UNAVAILABLE', async () => {
     jest
       .spyOn(app.get(ForecastsRepository), 'findSnapshot')
-      .mockRejectedValueOnce(
+      // Both sources fail their read, so no refresh outlives the response.
+      .mockRejectedValue(
         new ForecastStorageUnavailableError('Could not read a forecast snapshot.'),
       );
 
@@ -427,7 +428,7 @@ describe('activity forecast GraphQL contract (e2e)', () => {
     const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest
       .spyOn(app.get(ForecastsRepository), 'findSnapshot')
-      .mockRejectedValueOnce(new Error('relation "forecast_snapshots" does not exist'));
+      .mockRejectedValue(new Error('relation "forecast_snapshots" does not exist'));
 
     const body = await post(FORECAST_QUERY, { input: { city: 'Peniche' } });
 
@@ -443,7 +444,6 @@ describe('activity forecast GraphQL contract (e2e)', () => {
       ],
     });
     expect(logError).toHaveBeenCalled();
-    logError.mockRestore();
   });
 
   it('reports a geocoding outage as GEOCODING_UNAVAILABLE without provider details', async () => {
@@ -457,7 +457,7 @@ describe('activity forecast GraphQL contract (e2e)', () => {
 
       expect(body.data).toBeNull();
       expect(body.errors?.[0].extensions).toEqual({ code: 'GEOCODING_UNAVAILABLE' });
-      expect(body.errors?.[0].message).not.toContain('internal');
+      expect(body.errors?.[0].message).toBe('Geocoding answered HTTP 503.');
     }
   });
 
