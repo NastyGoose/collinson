@@ -31,6 +31,12 @@ export const DEFAULT_VALUES: Readonly<Record<WeatherField, number>> = {
 export const REQUESTED: Coordinates = { latitude: 39.3558, longitude: -9.38112 };
 export const NEAR_GRID: Coordinates = { latitude: 39.375, longitude: -9.344985 };
 
+export const ORIGIN: Coordinates = { latitude: 0, longitude: 0 };
+/** Due north of the origin at exactly 25 km on the 6371.0088 km sphere, in IEEE doubles. */
+export const AT_25_KM: Coordinates = { latitude: 0.2248300909311345, longitude: 0 };
+/** The next representable step further north: a hair over 25 km. */
+export const JUST_OVER_25_KM: Coordinates = { latitude: 0.2248300909311355, longitude: 0 };
+
 const FIELDS_BY_SOURCE: Record<WeatherSource, WeatherField[]> = {
   ATMOSPHERIC: ['temperature_2m', 'snow_depth', 'precipitation', 'wind_speed_10m'],
   MARINE: ['wave_height', 'wave_period'],
@@ -65,9 +71,23 @@ export function onDate(date: string, value: number | null, otherwise: number): F
   return (localDate) => (localDate === date ? value : otherwise);
 }
 
+/** Drops the hourly row at `epochSeconds` from the timeline and every series, in place. */
+export function withoutInstant(forecast: NormalizedForecast, epochSeconds: number): void {
+  const index = forecast.hourly.time.indexOf(epochSeconds);
+  if (index === -1) {
+    throw new Error(`No hourly row at ${epochSeconds}.`);
+  }
+  forecast.hourly.time.splice(index, 1);
+  for (const values of Object.values(forecast.hourly.series)) {
+    values.splice(index, 1);
+  }
+}
+
 /**
- * Hourly rows on whole UTC hours from well before local midnight of the provider's
- * "today" to well after the last window date, so any whole-hour offset is covered.
+ * Hourly rows on whole local hours from well before local midnight of the
+ * provider's "today" to well after the last window date. Rows are shifted by the
+ * zone's minute offset, so a +05:30 zone gets rows at local hh:00 as Open-Meteo
+ * returns them.
  */
 function forecast(
   source: WeatherSource,
@@ -76,7 +96,8 @@ function forecast(
   returned: Coordinates,
 ): NormalizedForecast {
   const today = addDays(window.dates[0], -1);
-  const first = Date.parse(`${today}T00:00:00Z`) / 1000 - 14 * HOUR_S;
+  const start = Date.parse(`${today}T00:00:00Z`) / 1000 - 14 * HOUR_S;
+  const first = start - toLocalDateTime(start * 1000, window.timezone).minute * 60;
   const time = Array.from({ length: 8 * 24 + 28 }, (_, index) => first + index * HOUR_S);
   const local = time.map((seconds) => toLocalDateTime(seconds * 1000, window.timezone));
 
