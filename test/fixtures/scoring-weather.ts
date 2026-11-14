@@ -27,7 +27,7 @@ export const DEFAULT_VALUES: Readonly<Record<WeatherField, number>> = {
   wave_period: 12,
 };
 
-/** Requested point near Peniche and a sea grid cell about 3.6 km away. */
+/** Requested point near Peniche and a sea grid cell about 3.8 km away. */
 export const REQUESTED: Coordinates = { latitude: 39.3558, longitude: -9.38112 };
 export const NEAR_GRID: Coordinates = { latitude: 39.375, longitude: -9.344985 };
 
