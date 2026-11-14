@@ -58,6 +58,8 @@ export abstract class OpenMeteoForecastClient {
       if (error instanceof SourceRefreshError) {
         const detail = typeof error.cause === 'string' ? `: ${forLog(error.cause)}` : '';
         this.logger.warn(`${label} unavailable (${error.code})${detail}`);
+      } else {
+        this.logger.warn(`${label} unavailable: ${String(error)}`);
       }
       throw error;
     }
