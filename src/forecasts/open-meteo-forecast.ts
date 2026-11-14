@@ -1,7 +1,8 @@
 import type { Logger } from '@nestjs/common';
 import type { HttpFetch } from '../http/http-fetch';
+import { forLog, requestJson, UpstreamRequestError } from '../http/json-request';
 import type { Location } from '../locations/location';
-import { SourceRefreshError } from './forecast.errors';
+import { SourceRefreshError, type SourceFailureCode } from './forecast.errors';
 import type { HourlySeries, NormalizedForecast, WeatherSource } from './weather-source';
 
 /** Per-attempt limit (SPEC-02). */
@@ -29,8 +30,8 @@ export interface ForecastSourceSpec {
 export type ForecastLocation = Pick<Location, 'latitude' | 'longitude' | 'timezone'>;
 
 /**
- * Shared Open-Meteo forecast adapter: one bounded request, then validation into a
- * NormalizedForecast. Subclasses supply the source spec. Failures surface as
+ * Shared Open-Meteo forecast adapter: one bounded request (src/http/json-request.ts),
+ * then validation into a NormalizedForecast. Subclasses supply the source spec. Failures surface as
  * SourceRefreshError; nothing here reads or writes storage.
  */
 export abstract class OpenMeteoForecastClient {
@@ -40,87 +41,40 @@ export abstract class OpenMeteoForecastClient {
   protected constructor(private readonly fetch: HttpFetch) {}
 
   async fetchForecast(location: ForecastLocation): Promise<NormalizedForecast> {
-    const body = await this.fetchWithRetry(forecastUrl(this.spec, location));
+    const { label } = this.spec;
+    let body: unknown;
+    try {
+      body = await requestJson(this.fetch, forecastUrl(this.spec, location), {
+        label,
+        timeoutMs: OPEN_METEO_TIMEOUT_MS,
+        logger: this.logger,
+      });
+    } catch (error) {
+      throw error instanceof UpstreamRequestError ? toRefreshError(error) : error;
+    }
     try {
       return parseForecastResponse(body, this.spec, location);
     } catch (error) {
-      this.logFailure(error);
+      if (error instanceof SourceRefreshError) {
+        const detail = typeof error.cause === 'string' ? `: ${forLog(error.cause)}` : '';
+        this.logger.warn(`${label} unavailable (${error.code})${detail}`);
+      }
       throw error;
     }
   }
+}
 
-  /** At most one retry, and only for failures a second attempt can plausibly fix. */
-  private async fetchWithRetry(url: URL): Promise<unknown> {
-    try {
-      return await this.fetchOnce(url);
-    } catch (error) {
-      if (!(error instanceof SourceRefreshError) || !error.transient) {
-        this.logFailure(error);
-        throw error;
-      }
-      this.logger.warn(`${this.spec.label} attempt failed (${error.code}); retrying once`);
-      try {
-        return await this.fetchOnce(url);
-      } catch (retryError) {
-        this.logFailure(retryError);
-        throw retryError;
-      }
-    }
-  }
-
-  private async fetchOnce(url: URL): Promise<unknown> {
-    const label = this.spec.label;
-    let response: Response;
-    let text: string;
-    try {
-      response = await this.fetch(url, {
-        headers: { accept: 'application/json' },
-        signal: AbortSignal.timeout(OPEN_METEO_TIMEOUT_MS),
-      });
-      text = await response.text();
-    } catch (error) {
-      if (errorName(error) === 'TimeoutError') {
-        throw new SourceRefreshError(
-          'TIMEOUT',
-          `${label} did not answer within ${OPEN_METEO_TIMEOUT_MS} ms.`,
-          { cause: error, transient: true },
-        );
-      }
-      throw new SourceRefreshError('UPSTREAM_FAILURE', `${label} request failed.`, {
-        cause: error,
-        transient: true,
-      });
-    }
-
-    if (response.status === 429) {
-      throw new SourceRefreshError('RATE_LIMITED', `${label} rate limit reached (HTTP 429).`);
-    }
-    if (!response.ok) {
-      throw new SourceRefreshError(
-        'UPSTREAM_FAILURE',
-        `${label} answered HTTP ${response.status}.`,
-        { cause: text, transient: response.status >= 500 },
-      );
-    }
-
-    try {
-      const parsed: unknown = JSON.parse(text);
-      return parsed;
-    } catch (error) {
-      throw new SourceRefreshError('INVALID_PAYLOAD', `${label} answered with invalid JSON.`, {
-        cause: error,
-      });
-    }
-  }
-
-  private logFailure(error: unknown): void {
-    if (!(error instanceof SourceRefreshError)) {
-      this.logger.warn(`${this.spec.label} unavailable: ${String(error)}`);
-      return;
-    }
-    const detail = typeof error.cause === 'string' ? `: ${forLog(error.cause)}` : '';
-    this.logger.warn(`${this.spec.label} unavailable (${error.code})${detail}`);
-  }
+/** Maps a failed request to the source failure codes of the Technical Design. */
+function toRefreshError(error: UpstreamRequestError): SourceRefreshError {
+  const code: SourceFailureCode =
+    error.kind === 'TIMEOUT'
+      ? 'TIMEOUT'
+      : error.kind === 'RATE_LIMITED'
+        ? 'RATE_LIMITED'
+        : error.kind === 'INVALID_JSON'
+          ? 'INVALID_PAYLOAD'
+          : 'UPSTREAM_FAILURE';
+  return new SourceRefreshError(code, error.message, { cause: error, transient: error.transient });
 }
 
 /** The request URL: explicit horizon, time zone, Unix timestamps and variables. Exported for tests. */
@@ -252,21 +206,6 @@ function parseSeries(
 
 /** The largest instant a Date can hold, in seconds (ECMAScript: 8.64e15 ms either side of 1970). */
 const MAX_UNIX_SECONDS = 8.64e12;
-
-/** Provider text, cut short and stripped of control characters so it cannot forge log lines. */
-function forLog(text: string): string {
-  return text.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').slice(0, 200);
-}
-
-// Not `instanceof Error`: fetch's DOMException can come from another realm (e.g. under Jest).
-function errorName(error: unknown): string | undefined {
-  return typeof error === 'object' &&
-    error !== null &&
-    'name' in error &&
-    typeof error.name === 'string'
-    ? error.name
-    : undefined;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

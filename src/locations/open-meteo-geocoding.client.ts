@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
+import { requestJson, UpstreamRequestError } from '../http/json-request';
 import { MAX_CANDIDATES, type Location } from './location';
-import { GeocodingUnavailableError } from './location.errors';
+import { GeocodingUnavailableError, type GeocodingFailureKind } from './location.errors';
 
 export const OPEN_METEO_GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 
@@ -49,88 +50,32 @@ export class OpenMeteoGeocodingClient {
       url.searchParams.set('countryCode', countryCode);
     }
 
-    const body = await this.fetchWithRetry(url);
+    let body: unknown;
+    try {
+      body = await requestJson(this.fetch, url, {
+        label: 'Geocoding',
+        timeoutMs: GEOCODING_TIMEOUT_MS,
+        logger: this.logger,
+      });
+    } catch (error) {
+      throw error instanceof UpstreamRequestError ? toGeocodingError(error) : error;
+    }
     return parseGeocodingResponse(body, countryCode);
   }
+}
 
-  /** At most one retry, and only for failures a second attempt can plausibly fix. */
-  private async fetchWithRetry(url: URL): Promise<unknown> {
-    try {
-      return await this.fetchOnce(url);
-    } catch (error) {
-      if (!(error instanceof GeocodingUnavailableError) || !error.transient) {
-        this.logFailure(error);
-        throw error;
-      }
-      this.logger.warn(`Geocoding attempt failed (${error.kind}); retrying once`);
-      try {
-        return await this.fetchOnce(url);
-      } catch (retryError) {
-        this.logFailure(retryError);
-        throw retryError;
-      }
-    }
-  }
-
-  private async fetchOnce(url: URL): Promise<unknown> {
-    let response: Response;
-    let text: string;
-    try {
-      response = await this.fetch(url, {
-        headers: { accept: 'application/json' },
-        signal: AbortSignal.timeout(GEOCODING_TIMEOUT_MS),
-      });
-      text = await response.text();
-    } catch (error) {
-      if (errorName(error) === 'TimeoutError') {
-        throw new GeocodingUnavailableError(
-          'TIMEOUT',
-          `Geocoding did not answer within ${GEOCODING_TIMEOUT_MS} ms.`,
-          { cause: error, transient: true },
-        );
-      }
-      throw new GeocodingUnavailableError('NETWORK', 'Geocoding request failed.', {
-        cause: error,
-        transient: true,
-      });
-    }
-
-    if (response.status === 429) {
-      throw new GeocodingUnavailableError(
-        'RATE_LIMITED',
-        'Geocoding rate limit reached (HTTP 429).',
-      );
-    }
-    if (!response.ok) {
-      throw new GeocodingUnavailableError(
-        'UPSTREAM_FAILURE',
-        `Geocoding answered HTTP ${response.status}.`,
-        { transient: response.status >= 500 },
-      );
-    }
-
-    try {
-      const parsed: unknown = JSON.parse(text);
-      return parsed;
-    } catch (error) {
-      throw new GeocodingUnavailableError(
-        'INVALID_PAYLOAD',
-        'Geocoding answered with invalid JSON.',
-        {
-          cause: error,
-        },
-      );
-    }
-  }
-
-  private logFailure(error: unknown): void {
-    if (!(error instanceof GeocodingUnavailableError)) {
-      this.logger.warn(`Geocoding unavailable: ${String(error)}`);
-      return;
-    }
-    const reason = typeof error.cause === 'string' ? `: ${error.cause}` : '';
-    this.logger.warn(`Geocoding unavailable (${error.kind})${reason}`);
-  }
+/** Maps a failed request to the geocoding failure kinds. */
+function toGeocodingError(error: UpstreamRequestError): GeocodingUnavailableError {
+  const kind: GeocodingFailureKind =
+    error.kind === 'HTTP_ERROR'
+      ? 'UPSTREAM_FAILURE'
+      : error.kind === 'INVALID_JSON'
+        ? 'INVALID_PAYLOAD'
+        : error.kind;
+  return new GeocodingUnavailableError(kind, error.message, {
+    cause: error,
+    transient: error.transient,
+  });
 }
 
 /**
@@ -220,16 +165,6 @@ function toLocation(raw: unknown, countryCode: string | null): Location | null {
     longitude: result.longitude,
     timezone,
   };
-}
-
-// Not `instanceof Error`: fetch's DOMException can come from another realm (e.g. under Jest).
-function errorName(error: unknown): string | undefined {
-  return typeof error === 'object' &&
-    error !== null &&
-    'name' in error &&
-    typeof error.name === 'string'
-    ? error.name
-    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
