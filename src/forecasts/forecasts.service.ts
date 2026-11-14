@@ -36,10 +36,13 @@ export interface ForecastWeather {
   marine: SourceResult;
 }
 
-/** The result of one shared refresh, judged against the window of the caller that started it. */
+/**
+ * The result of one shared refresh, judged against the window of the caller that
+ * started it. A failure carries the row the refresh found stored when it began.
+ */
 type RefreshOutcome =
   | { window: ForecastWindow; ok: true; snapshot: WeatherSnapshot }
-  | { window: ForecastWindow; ok: false; failure: SourceFailure };
+  | { window: ForecastWindow; ok: false; failure: SourceFailure; stored: WeatherSnapshot | null };
 
 /**
  * Owns forecast snapshots: reuse, request-driven refresh and fallback for the
@@ -87,7 +90,7 @@ export class ForecastsService {
   ): Promise<SourceResult> {
     const { source, schemaVersion } = client.spec;
     const stored = await this.repository.findSnapshot(location.id, source, schemaVersion);
-    if (stored !== null && this.ageOf(stored) < FRESH_FOR_MS && covers(stored, window, client)) {
+    if (stored !== null && this.isFresh(stored, window, client)) {
       return { source, freshness: 'FRESH', snapshot: stored };
     }
 
@@ -95,23 +98,25 @@ export class ForecastsService {
     if (outcome.ok && covers(outcome.snapshot, window, client)) {
       return { source, freshness: 'FRESH', snapshot: outcome.snapshot };
     }
-    const candidates = [outcome.ok ? outcome.snapshot : null, stored];
+    const candidates = [latestOf(outcome), stored];
 
     // A caller that joined a refresh started for another date window — typically
-    // one frozen before local midnight — gets one more refresh for its own window.
-    if (!sameWindow(outcome.window, window)) {
+    // one frozen before local midnight — gets one more refresh for its own window,
+    // unless the joined refresh failed for a reason a new window cannot fix.
+    const windowMayHelp = outcome.ok || outcome.failure.code === 'INSUFFICIENT_COVERAGE';
+    if (!sameWindow(outcome.window, window) && windowMayHelp) {
       outcome = await this.refresh(location, window, client);
       if (outcome.ok && covers(outcome.snapshot, window, client)) {
         return { source, freshness: 'FRESH', snapshot: outcome.snapshot };
       }
-      candidates.unshift(outcome.ok ? outcome.snapshot : null);
+      candidates.unshift(latestOf(outcome));
     }
 
     const failure = outcome.ok ? insufficientCoverage(client, window) : outcome.failure;
     const fallback = candidates.find(
       (snapshot): snapshot is WeatherSnapshot =>
         snapshot !== null &&
-        this.ageOf(snapshot) <= STALE_FALLBACK_MS &&
+        isAgeWithin(this.ageOf(snapshot), STALE_FALLBACK_MS + 1) &&
         covers(snapshot, window, client),
     );
     return fallback === undefined
@@ -140,14 +145,22 @@ export class ForecastsService {
   }
 
   /**
-   * Fetches, validates the payload and its coverage of `window`, then upserts.
-   * Anything that fails validation is never written, so the previous snapshot stays.
+   * Re-reads the stored row first: a refresh that settled after the caller's own
+   * read may already have replaced it, and then it is reused without a fetch.
+   * Otherwise fetches, validates the payload and its coverage of `window`, then
+   * upserts. Anything that fails validation is never written.
    */
   private async runRefresh(
     location: Location,
     window: ForecastWindow,
     client: OpenMeteoForecastClient,
   ): Promise<RefreshOutcome> {
+    const { source, schemaVersion } = client.spec;
+    const stored = await this.repository.findSnapshot(location.id, source, schemaVersion);
+    if (stored !== null && this.isFresh(stored, window, client)) {
+      return { window, ok: true, snapshot: stored };
+    }
+
     let snapshot: WeatherSnapshot;
     try {
       const forecast = await client.fetchForecast(location);
@@ -166,15 +179,40 @@ export class ForecastsService {
       this.logger.warn(
         `${client.spec.label} refresh failed for location ${location.id} (${error.code})`,
       );
-      return { window, ok: false, failure: { code: error.code, reason: error.message } };
+      return {
+        window,
+        ok: false,
+        failure: { code: error.code, reason: error.message },
+        stored,
+      };
     }
     await this.repository.saveSnapshot(snapshot);
     return { window, ok: true, snapshot };
   }
 
+  private isFresh(
+    snapshot: WeatherSnapshot,
+    window: ForecastWindow,
+    client: OpenMeteoForecastClient,
+  ): boolean {
+    return isAgeWithin(this.ageOf(snapshot), FRESH_FOR_MS) && covers(snapshot, window, client);
+  }
+
   private ageOf(snapshot: WeatherSnapshot): number {
     return this.clock.now().getTime() - snapshot.fetchedAt.getTime();
   }
+}
+
+/**
+ * True for an age in [0, limit). A snapshot dated in the future (the clock was set
+ * back, or the row was edited) is never trusted as recent.
+ */
+function isAgeWithin(ageMs: number, limitMs: number): boolean {
+  return ageMs >= 0 && ageMs < limitMs;
+}
+
+function latestOf(outcome: RefreshOutcome): WeatherSnapshot | null {
+  return outcome.ok ? outcome.snapshot : outcome.stored;
 }
 
 function covers(

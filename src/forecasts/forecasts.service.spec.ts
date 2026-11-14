@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { atmosphericBody, marineBody, PENICHE } from '../../test/fixtures/open-meteo-weather';
+import { deferred } from '../../test/support/deferred';
 import { rejected } from '../../test/support/errors';
 import { FixedClock } from '../../test/support/fixed-clock';
 import { Clock } from '../clock/clock';
@@ -31,22 +32,16 @@ function snapshot(forecast: NormalizedForecast, fetchedAt: string): WeatherSnaps
   return { ...forecast, locationId: PENICHE.id, fetchedAt: new Date(fetchedAt) };
 }
 
-/** A promise the test settles by hand, to hold a provider answer while callers pile up. */
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((settle) => {
-    resolve = settle;
-  });
-  return { promise, resolve };
-}
-
 async function createService() {
   const clock = new FixedClock(NOON);
+  // One location per test: rows are keyed by source, and reads check the rest of the key.
   const rows = new Map<WeatherSource, WeatherSnapshot>();
   const repository: jest.Mocked<Pick<ForecastsRepository, 'findSnapshot' | 'saveSnapshot'>> = {
-    findSnapshot: jest.fn((_id: string, source: WeatherSource, _version: number) =>
-      Promise.resolve(rows.get(source) ?? null),
-    ),
+    findSnapshot: jest.fn((locationId: string, source: WeatherSource, schemaVersion: number) => {
+      const row = rows.get(source);
+      const matches = row?.locationId === locationId && row.schemaVersion === schemaVersion;
+      return Promise.resolve(matches ? row : null);
+    }),
     saveSnapshot: jest.fn((row: WeatherSnapshot) => {
       rows.set(row.source, row);
       return Promise.resolve();
@@ -128,7 +123,7 @@ describe('ForecastsService reuse', () => {
     expect(weather.atmospheric.freshness).toBe('FRESH');
   });
 
-  it('treats a fresh all-null marine snapshot as fresh', async () => {
+  it('reuses a fresh all-null marine snapshot without a refresh', async () => {
     const { service, rows, marineClient, window } = await createService();
     rows.set('MARINE', snapshot(marine(TODAY, 'null'), NOON));
 
@@ -136,6 +131,47 @@ describe('ForecastsService reuse', () => {
 
     expect(weather.marine.freshness).toBe('FRESH');
     expect(marineClient.fetchForecast).not.toHaveBeenCalled();
+  });
+
+  it('does not trust a snapshot dated in the future as fresh', async () => {
+    const { service, rows, atmosphericClient, window } = await createService();
+    rows.set('ATMOSPHERIC', snapshot(atmospheric(), '2026-11-14T13:00:00Z'));
+
+    await service.getWeather(PENICHE, window());
+
+    expect(atmosphericClient.fetchForecast).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a stored snapshot of another schema version', async () => {
+    const { service, rows, atmosphericClient, window } = await createService();
+    rows.set('ATMOSPHERIC', { ...snapshot(atmospheric(), NOON), schemaVersion: 0 });
+
+    await service.getWeather(PENICHE, window());
+
+    expect(atmosphericClient.fetchForecast).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses a snapshot another refresh stored after the caller read, without fetching', async () => {
+    const { service, repository, atmosphericClient, window } = await createService();
+    const justStored = snapshot(atmospheric(), NOON);
+    // The caller's read predates the other refresh; the refresh's own read sees its row.
+    let atmosphericReads = 0;
+    repository.findSnapshot.mockImplementation((_id, source) => {
+      if (source !== 'ATMOSPHERIC') {
+        return Promise.resolve(null);
+      }
+      atmosphericReads += 1;
+      return Promise.resolve(atmosphericReads === 1 ? null : justStored);
+    });
+
+    const weather = await service.getWeather(PENICHE, window());
+
+    expect(atmosphericClient.fetchForecast).not.toHaveBeenCalled();
+    expect(weather.atmospheric).toEqual({
+      source: 'ATMOSPHERIC',
+      freshness: 'FRESH',
+      snapshot: justStored,
+    });
   });
 
   it('rejects a window in another time zone than the location', async () => {
@@ -256,6 +292,7 @@ describe('ForecastsService coalescing', () => {
     atmosphericClient.fetchForecast.mockReturnValue(answer.promise);
 
     const requests = [1, 2, 3].map(() => service.getWeather(PENICHE, window()));
+    await flush();
     answer.resolve(atmospheric());
     const results = await Promise.all(requests);
 
@@ -309,6 +346,29 @@ describe('ForecastsService coalescing', () => {
     expect(late.atmospheric).toMatchObject({
       freshness: 'UNAVAILABLE',
       failure: { code: 'INSUFFICIENT_COVERAGE' },
+    });
+  });
+
+  it('skips the follow-up when the joined refresh failed for a reason other than coverage', async () => {
+    const { service, clock, atmosphericClient } = await createService();
+    const beforeMidnight = deferred<NormalizedForecast>();
+    atmosphericClient.fetchForecast.mockReturnValueOnce(beforeMidnight.promise);
+
+    clock.set('2026-11-14T23:59:00Z');
+    const first = service.getWeather(PENICHE, forecastWindow(clock.now(), PENICHE.timezone));
+    clock.set('2026-11-15T00:01:00Z');
+    const second = service.getWeather(PENICHE, forecastWindow(clock.now(), PENICHE.timezone));
+    await flush();
+    // A follow-up would reach the default mock and succeed, so a second call shows up.
+    beforeMidnight.reject(
+      new SourceRefreshError('RATE_LIMITED', 'Atmospheric forecast rate limit reached (HTTP 429).'),
+    );
+    const [, late] = await Promise.all([first, second]);
+
+    expect(atmosphericClient.fetchForecast).toHaveBeenCalledTimes(1);
+    expect(late.atmospheric).toMatchObject({
+      freshness: 'UNAVAILABLE',
+      failure: { code: 'RATE_LIMITED' },
     });
   });
 

@@ -5,6 +5,7 @@ import {
   marineBody,
   PENICHE,
   WARSAW,
+  type Payload,
 } from '../../test/fixtures/open-meteo-weather';
 import { rejected, thrown } from '../../test/support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../test/support/fixture-fetch';
@@ -41,8 +42,10 @@ function sequence(...answers: Array<Response | Error>) {
   });
 }
 
+let warn: jest.SpyInstance;
+
 beforeAll(() => {
-  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 });
 
 afterAll(() => {
@@ -98,6 +101,38 @@ describe('Open-Meteo forecast requests', () => {
     expect(OPEN_METEO_TIMEOUT_MS).toBe(5000);
     expect(timeout).toHaveBeenCalledWith(OPEN_METEO_TIMEOUT_MS);
     expect(fetch.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    timeout.mockRestore();
+  });
+
+  it('aborts a stalled attempt at the limit and retries it once', async () => {
+    const controllers: AbortController[] = [];
+    const timeout = jest.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      return controller.signal;
+    });
+    // Each attempt waits on its signal, as fetch does, and never answers on its own.
+    const fetch = fixtureFetch();
+    fetch.mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+        }),
+    );
+
+    const pending = refreshError(new OpenMeteoMarineClient(fetch).fetchForecast(PENICHE));
+    // Fire each attempt's timer as AbortSignal.timeout would after 5000 ms.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      while (controllers.length <= attempt) {
+        await Promise.resolve();
+      }
+      controllers[attempt].abort(timeoutError());
+    }
+    const error = await pending;
+
+    expect(timeout).toHaveBeenNthCalledWith(2, OPEN_METEO_TIMEOUT_MS);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(error.code).toBe('TIMEOUT');
     timeout.mockRestore();
   });
 
@@ -176,6 +211,20 @@ describe('Open-Meteo forecast retries', () => {
     expect(error.message).not.toContain('bogus');
   });
 
+  it('logs provider text cut short and without control characters', async () => {
+    warn.mockClear();
+    const fetch = sequence(
+      new Response(`line one\nFORGED LOG LINE\u001b[31m${'x'.repeat(500)}`, { status: 404 }),
+    );
+
+    await refreshError(new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE));
+
+    const logged = String(warn.mock.calls.at(-1)?.[0]);
+    expect(logged).toContain('line one FORGED LOG LINE');
+    expect(/\p{Cc}/u.test(logged)).toBe(false);
+    expect(logged.length).toBeLessThan(300);
+  });
+
   it('does not retry an invalid payload', async () => {
     const fetch = sequence(new Response('<html>', { status: 200 }), body());
 
@@ -234,6 +283,7 @@ describe('parseForecastResponse', () => {
     ['wind in mph', (body) => withUnit(body, 'wind_speed_10m', 'mp/h')],
     ['temperature in °F', (body) => withUnit(body, 'temperature_2m', '°F')],
     ['snow depth in cm', (body) => withUnit(body, 'snow_depth', 'cm')],
+    ['precipitation in inches', (body) => withUnit(body, 'precipitation', 'inch')],
     ['missing hourly', (body) => ({ ...body, hourly: undefined })],
     ['empty timestamps', (body) => withSeries(body, 'time', [])],
     ['string timestamps', (body) => withSeries(body, 'time', mapSeries(body, 'time', String))],
@@ -242,6 +292,11 @@ describe('parseForecastResponse', () => {
       (body) => withSeries(body, 'time', mapSeries(body, 'time').reverse()),
     ],
     ['a duplicated timestamp', (body) => withSeries(body, 'time', duplicateFirst(body, 'time'))],
+    ['a timestamp beyond the Date range', (body) => withSeries(body, 'time', withLast(body, 9e12))],
+    [
+      'a timestamp off the minute',
+      (body) => withSeries(body, 'time', withLast(body, 1794614401 + 191 * 3600)),
+    ],
     ['a missing series', (body) => withSeries(body, 'precipitation', undefined)],
     [
       'a short series',
@@ -260,11 +315,17 @@ describe('parseForecastResponse', () => {
     expect(error.message).toMatch(/^Atmospheric forecast payload is invalid: /);
   });
 
-  it('rejects a marine payload in feet', () => {
+  it.each([
+    ['wave_height', 'ft'],
+    ['wave_period', 'min'],
+  ])('rejects marine %s in %s without echoing the provider unit', (variable, unit) => {
     const body = clonePayload(marineBody({ firstHour: FIRST_HOUR }));
-    body.hourly_units.wave_height = 'ft';
+    body.hourly_units[variable] = unit;
 
-    expect(parseError(body, MARINE_SPEC).message).toContain('wave_height');
+    const error = parseError(body, MARINE_SPEC);
+
+    expect(error.message).toContain(variable);
+    expect(error.message).not.toContain(unit);
   });
 
   it('reports the provider error envelope as an upstream failure', () => {
@@ -276,14 +337,25 @@ describe('parseForecastResponse', () => {
   });
 });
 
-type Payload = ReturnType<typeof clonePayload>;
-
 function withUnit(body: Payload, variable: string, unit: string): Payload {
   return { ...body, hourly_units: { ...body.hourly_units, [variable]: unit } };
 }
 
+/** The payload with one hourly series replaced, or removed when `values` is undefined. */
 function withSeries(body: Payload, variable: string, values: unknown[] | undefined): Payload {
-  return { ...body, hourly: { ...body.hourly, [variable]: values as unknown[] } };
+  const hourly = { ...body.hourly };
+  if (values === undefined) {
+    delete hourly[variable];
+  } else {
+    hourly[variable] = values;
+  }
+  return { ...body, hourly };
+}
+
+function withLast(body: Payload, time: number): unknown[] {
+  const times = [...body.hourly.time];
+  times[times.length - 1] = time;
+  return times;
 }
 
 function mapSeries(body: Payload, variable: string, map: (value: unknown) => unknown = (v) => v) {
