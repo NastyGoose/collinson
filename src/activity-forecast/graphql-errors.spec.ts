@@ -59,6 +59,24 @@ describe('formatGraphQLError', () => {
     });
   });
 
+  it.each(['GRAPHQL_VALIDATION_FAILED', 'GRAPHQL_PARSE_FAILED', 'PERSISTED_QUERY_NOT_FOUND'])(
+    'passes Apollo request error %s through',
+    (code) => {
+      const formatted = { message: 'Cannot query field "x".', extensions: { code } };
+
+      expect(formatGraphQLError(formatted)).toBe(formatted);
+    },
+  );
+
+  it('masks an error that carries a code of its own', () => {
+    expect(
+      formatGraphQLError({ message: 'SELECT * FROM secret', extensions: { code: 'P2002' } }),
+    ).toStrictEqual({
+      message: 'Internal server error.',
+      extensions: { code: 'INTERNAL_SERVER_ERROR' },
+    });
+  });
+
   it('masks an error that has no code at all', () => {
     expect(formatGraphQLError({ message: 'odd' })).toStrictEqual({
       message: 'Internal server error.',
