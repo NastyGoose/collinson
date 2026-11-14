@@ -124,7 +124,7 @@ describe('LocationsService with PostgreSQL', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE location_search_results, location_searches, locations`;
+    await prisma.$executeRaw`TRUNCATE forecast_snapshots, location_search_results, location_searches, locations`;
     clock.set(START);
     fetch = providerFixtures(PROVIDER);
     fixtureMisses.length = 0;

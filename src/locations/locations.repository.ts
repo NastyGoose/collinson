@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, type Location as LocationRow } from '../generated/prisma/client';
+import type { Location as LocationRow } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { isStorageFailure } from '../prisma/storage-failure';
 import type { Location } from './location';
 import { StorageUnavailableError } from './location.errors';
 
@@ -131,24 +132,6 @@ export class LocationsRepository {
       throw new StorageUnavailableError(`Could not ${operation}.`, { cause: error });
     }
   }
-}
-
-/**
- * Prisma error codes for an unreachable, overloaded or conflicting database:
- * P1xxx connection and server errors, P2024 pool timeout, P2028 transaction API
- * error, P2034 write conflict or deadlock. https://www.prisma.io/docs/orm/reference/error-reference
- */
-const STORAGE_FAILURE_CODES = new Set(['P2024', 'P2028', 'P2034']);
-
-function isStorageFailure(error: unknown): boolean {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    return error.code.startsWith('P1') || STORAGE_FAILURE_CODES.has(error.code);
-  }
-  return (
-    error instanceof Prisma.PrismaClientUnknownRequestError ||
-    error instanceof Prisma.PrismaClientInitializationError ||
-    error instanceof Prisma.PrismaClientRustPanicError
-  );
 }
 
 /** Most expired searches one purge deletes, so each purge stays small. */

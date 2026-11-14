@@ -2,8 +2,8 @@
 // The connection URL comes from prisma.config.ts (DATABASE_URL); the runtime client
 // connects through the @prisma/adapter-pg driver adapter in PrismaService.
 //
-// Tables use snake_case names through @@map / @map. Forecast snapshots arrive with
-// ARC-46. See docs/adr/0002-postgresql-prisma-persistence.md.
+// Tables use snake_case names through @@map / @map.
+// See docs/adr/0002-postgresql-prisma-persistence.md.
 
 generator client {
   provider     = "prisma-client"
@@ -30,7 +30,8 @@ model Location {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  searchResults LocationSearchResult[]
+  searchResults     LocationSearchResult[]
+  forecastSnapshots ForecastSnapshot[]
 
   @@map("locations")
 }
@@ -67,4 +68,45 @@ model LocationSearchResult {
   @@id([query, countryCode, position])
   @@index([locationId])
   @@map("location_search_results")
+}
+
+/// An Open-Meteo forecast API. Each is fetched, validated and refreshed on its own.
+enum WeatherSource {
+  ATMOSPHERIC
+  MARINE
+
+  @@map("weather_source")
+}
+
+/// The latest validated forecast for one location and source, in the normalized
+/// form of one request schema version. A refresh replaces the row in one upsert,
+/// only after the new payload has passed validation (ADR 0002, ADR 0003).
+model ForecastSnapshot {
+  locationId         String        @map("location_id")
+  source             WeatherSource
+  /// Version of the request (variables, units, horizon) and of the normalized shape.
+  schemaVersion      Int           @map("schema_version")
+  /// When the provider answered, taken from the injected clock.
+  fetchedAt          DateTime      @map("fetched_at") @db.Timestamptz(3)
+  /// First and last hourly timestamps in the snapshot.
+  coverageStart      DateTime      @map("coverage_start") @db.Timestamptz(3)
+  coverageEnd        DateTime      @map("coverage_end") @db.Timestamptz(3)
+  requestedLatitude  Float         @map("requested_latitude")
+  requestedLongitude Float         @map("requested_longitude")
+  /// The model grid point the provider answered for.
+  returnedLatitude   Float         @map("returned_latitude")
+  returnedLongitude  Float         @map("returned_longitude")
+  /// IANA time zone requested and used to bucket the hourly instants.
+  timezone           String
+  /// Provider unit per variable, e.g. {"temperature_2m": "°C"}.
+  units              Json
+  /// {"time": [unix seconds], "series": {"<variable>": [number | null]}}, nulls preserved.
+  hourly             Json
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([locationId, source, schemaVersion])
+  @@map("forecast_snapshots")
 }
