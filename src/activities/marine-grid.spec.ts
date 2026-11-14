@@ -1,4 +1,10 @@
-import { NEAR_GRID, REQUESTED } from '../../test/fixtures/scoring-weather';
+import {
+  AT_25_KM,
+  JUST_OVER_25_KM,
+  NEAR_GRID,
+  ORIGIN,
+  REQUESTED,
+} from '../../test/fixtures/scoring-weather';
 import {
   checkMarineGrid,
   EARTH_RADIUS_KM,
@@ -6,12 +12,6 @@ import {
   isValidCoordinates,
   isWithinGridLimit,
 } from './marine-grid';
-
-const ORIGIN = { latitude: 0, longitude: 0 };
-/** Due north of the origin at exactly 25 km on the mean-radius sphere. */
-const AT_25_KM = { latitude: 0.2248300909311345, longitude: 0 };
-/** The next representable step further north: a hair over 25 km. */
-const JUST_OVER_25_KM = { latitude: 0.2248300909311355, longitude: 0 };
 
 describe('haversineKm', () => {
   it('measures along a meridian as the radius times the angle', () => {

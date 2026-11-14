@@ -67,6 +67,9 @@ describe('skiing', () => {
     expect(at(0.15, -5, 10)).toBeCloseTo(75, 10);
     expect(at(0.3, 5, 10)).toBe(70);
     expect(at(0.3, -5, 45)).toBe(80);
+    // 27.5 km/h is half-way from 10 to 45 km/h; 0 °C is half-way down from -5 to 5 °C.
+    expect(at(0.3, -5, 27.5)).toBeCloseTo(90, 10);
+    expect(at(0.3, 0, 10)).toBeCloseTo(85, 10);
   });
 
   it('scores a thin but non-zero snow depth on the formula', () => {
@@ -86,6 +89,17 @@ describe('surfing', () => {
     expect(at(1.2, 4, 10)).toBe(70);
     expect(at(1.2, 16, 10)).toBe(100);
     expect(at(1.2, 12, 40)).toBe(80);
+  });
+
+  it('interpolates inside each wave and wind range', () => {
+    const at = (medianWaveHeightM: number, medianWavePeriodS: number, maxWindKmh: number) =>
+      surfingScore({ medianWaveHeightM, medianWavePeriodS, maxWindKmh }).total;
+    // 0.6 m is half-way up to the 1.2 m peak and 2.1 m half-way down to 3 m.
+    expect(at(0.6, 12, 10)).toBeCloseTo(75, 10);
+    expect(at(2.1, 12, 10)).toBeCloseTo(75, 10);
+    // 8 s is half-way from 4 s to 12 s; 25 km/h is half-way from 10 to 40 km/h.
+    expect(at(1.2, 8, 10)).toBeCloseTo(85, 10);
+    expect(at(1.2, 12, 25)).toBeCloseTo(90, 10);
   });
 });
 

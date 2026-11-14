@@ -1,7 +1,11 @@
 import {
+  AT_25_KM,
   atmosphericForecast,
+  JUST_OVER_25_KM,
   marineForecast,
   onDate,
+  ORIGIN,
+  withoutInstant,
   type WeatherOverrides,
 } from '../../test/fixtures/scoring-weather';
 import { forecastWindow } from '../forecasts/forecast-window';
@@ -11,11 +15,6 @@ import { scoreActivities } from './activity-scoring';
 
 const WINDOW = forecastWindow(new Date('2026-11-14T12:00:00Z'), 'Europe/Lisbon');
 const [D1, D2, D3, D4, D5, D6, D7] = WINDOW.dates;
-
-const ORIGIN = { latitude: 0, longitude: 0 };
-/** Exactly 25 km due north of the origin on the mean-radius sphere (see marine-grid.spec). */
-const AT_25_KM = { latitude: 0.2248300909311345, longitude: 0 };
-const JUST_OVER_25_KM = { latitude: 0.2248300909311355, longitude: 0 };
 
 function score(
   atmospheric: WeatherOverrides | null = {},
@@ -74,7 +73,7 @@ describe('scoreActivities', () => {
       score: 90,
       rank: 1,
       reason:
-        'Mean 20.0 °C, 0.0 mm of precipitation and wind up to 25.0 km/h from 09:00 to 18:00; ' +
+        'Mean 20.0 °C, 0.0 mm of precipitation and wind up to 25.0 km/h in the 09:00–18:00 window; ' +
         'wind lowers the score most.',
       unavailableCode: null,
     });
@@ -85,7 +84,7 @@ describe('scoreActivities', () => {
       rank: 1,
       reason:
         'Outdoor sightseeing scores 90 with mean 20.0 °C, 0.0 mm of precipitation and wind up to ' +
-        '25.0 km/h from 09:00 to 18:00; an indoor alternative gains appeal as outdoor conditions worsen.',
+        '25.0 km/h in the 09:00–18:00 window; an indoor alternative gains appeal as outdoor conditions worsen.',
       unavailableCode: null,
     });
   });
@@ -93,6 +92,24 @@ describe('scoreActivities', () => {
   it('is deterministic for identical input', () => {
     const atmospheric = { temperature_2m: (date: string, hour: number) => hour + date.length };
     expect(score(atmospheric)).toEqual(score(atmospheric));
+  });
+
+  it('derives indoor sightseeing from the unrounded outdoor score', () => {
+    // 25.9 km/h gives outdoor 89.4, shown as 89, and indoor 55.3, shown as 55.
+    // Rounding outdoor first would give indoor 55.5, shown as 56.
+    const scores = score({ wind_speed_10m: 25.9 });
+    expect(day(scores, 'OUTDOOR_SIGHTSEEING', D1)).toMatchObject({ score: 89 });
+    expect(day(scores, 'INDOOR_SIGHTSEEING', D1)).toMatchObject({ score: 55 });
+  });
+
+  it('calls a day that rounds to 100 ideal rather than blaming a factor', () => {
+    const scores = score({ temperature_2m: 19.96, wind_speed_10m: 5 });
+    expect(day(scores, 'OUTDOOR_SIGHTSEEING', D1)).toMatchObject({
+      score: 100,
+      reason:
+        'Mean 20.0 °C, 0.0 mm of precipitation and wind up to 5.0 km/h in the 09:00–18:00 window; ' +
+        'every factor is ideal.',
+    });
   });
 
   describe('precipitation end-hour indexing', () => {
@@ -129,9 +146,20 @@ describe('scoreActivities', () => {
         score: 0,
         unavailableCode: null,
         reason:
-          'No snow on the ground: mean snow depth 0.00 m, mean -5.0 °C and wind up to 10.0 km/h ' +
-          'from 09:00 to 17:00.',
+          'No snow on the ground: mean snow depth 0.000 m, mean -5.0 °C and wind up to 10.0 km/h ' +
+          'in the 09:00–18:00 window.',
       });
+    });
+
+    it('shows a thin snow cover as non-zero, apart from bare ground', () => {
+      // One 0.01 m reading in nine hours: mean 0.0011 m, scored on the formula.
+      const scores = score({
+        snow_depth: (_date, hour) => (hour === 12 ? 0.01 : 0),
+        temperature_2m: -5,
+        wind_speed_10m: 10,
+      });
+      expect(day(scores, 'SKIING', D1)).toMatchObject({ score: 50 });
+      expect(day(scores, 'SKIING', D1).reason).toMatch(/^Mean snow depth 0\.001 m,/);
     });
 
     it('makes absent snow data unavailable for skiing only', () => {
@@ -153,7 +181,7 @@ describe('scoreActivities', () => {
       expect(day(scores, 'SKIING', D1)).toMatchObject({
         score: 80,
         reason:
-          'Mean snow depth 0.25 m, mean -8.0 °C and wind up to 20.0 km/h from 09:00 to 17:00; ' +
+          'Mean snow depth 0.250 m, mean -8.0 °C and wind up to 20.0 km/h in the 09:00–18:00 window; ' +
           'snow depth lowers the score most.',
       });
     });
@@ -263,10 +291,7 @@ describe('scoreActivities', () => {
 
     it('treats a snapshot without the required local hours as an unavailable source', () => {
       const atmospheric = atmosphericForecast(WINDOW);
-      const at18 = Date.parse(`${D7}T18:00:00Z`) / 1000;
-      const index = atmospheric.hourly.time.indexOf(at18);
-      atmospheric.hourly.time.splice(index, 1);
-      Object.values(atmospheric.hourly.series).forEach((values) => values.splice(index, 1));
+      withoutInstant(atmospheric, Date.parse(`${D7}T18:00:00Z`) / 1000);
       const scores = scoreActivities({
         window: WINDOW,
         atmospheric,
@@ -290,7 +315,7 @@ describe('scoreActivities', () => {
       expect(day(scores, 'SURFING', D1)).toMatchObject({
         score: 88,
         reason:
-          'Median wave height 1.40 m, median period 11.2 s and wind up to 14.5 km/h from 09:00 to 17:00, ' +
+          'Median wave height 1.40 m, median period 11.2 s and wind up to 14.5 km/h in the 09:00–18:00 window, ' +
           'at a model grid point 3.8 km away; wave height lowers the score most.',
       });
     });
@@ -369,8 +394,9 @@ describe('scoreActivities', () => {
     });
 
     it('orders by rounded score, so a lower unrounded score on an earlier date ranks first', () => {
-      // 25.5 km/h scores 89.67 and 25 km/h scores 90.00: both round to 90.
-      const winds: Record<string, number> = { [D1]: 30, [D2]: 25, [D3]: 25.5, [D4]: 10 };
+      // 25.5 km/h scores 89.67 and 25 km/h scores 90.00: both round to 90, so D2 ranks
+      // first although its unrounded score is lower.
+      const winds: Record<string, number> = { [D1]: 30, [D2]: 25.5, [D3]: 25, [D4]: 10 };
       const scores = score({ wind_speed_10m: (date) => winds[date] ?? 40 });
       expect(order(scores, 'OUTDOOR_SIGHTSEEING')).toEqual([
         [D4, 100],

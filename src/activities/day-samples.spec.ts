@@ -1,4 +1,10 @@
-import { atmosphericForecast, marineForecast } from '../../test/fixtures/scoring-weather';
+import {
+  atmosphericForecast,
+  marineForecast,
+  withoutInstant,
+} from '../../test/fixtures/scoring-weather';
+import { ATMOSPHERIC_SPEC } from '../forecasts/open-meteo-atmospheric.client';
+import { MARINE_SPEC } from '../forecasts/open-meteo-marine.client';
 import { forecastWindow } from '../forecasts/forecast-window';
 import {
   INSTANT_HOURS,
@@ -27,6 +33,11 @@ describe('scoring hours', () => {
     expect(scoringHours('ATMOSPHERIC')).toEqual([9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
     expect(scoringHours('MARINE')).toEqual(INSTANT_HOURS);
   });
+
+  it('matches the hours the forecast service requires before it reports a source fresh', () => {
+    expect(scoringHours('ATMOSPHERIC')).toEqual(ATMOSPHERIC_SPEC.requiredLocalHours);
+    expect(scoringHours('MARINE')).toEqual(MARINE_SPEC.requiredLocalHours);
+  });
 });
 
 describe('sampleSource', () => {
@@ -50,6 +61,16 @@ describe('sampleSource', () => {
     const forecast = atmosphericForecast(warsaw, { wind_speed_10m: (_date, hour) => hour });
     const samples = sampleSource('ATMOSPHERIC', forecast, warsaw);
     expect(samples?.field('wind_speed_10m', warsaw.dates[0])).toEqual({
+      usable: true,
+      values: INSTANT_HOURS,
+    });
+  });
+
+  it('matches local hours in a zone with a half-hour offset', () => {
+    const kolkata = forecastWindow(new Date('2026-11-14T12:00:00Z'), 'Asia/Kolkata');
+    const forecast = atmosphericForecast(kolkata, { temperature_2m: (_date, hour) => hour });
+    const samples = sampleSource('ATMOSPHERIC', forecast, kolkata);
+    expect(samples?.field('temperature_2m', kolkata.dates[0])).toEqual({
       usable: true,
       values: INSTANT_HOURS,
     });
@@ -90,6 +111,23 @@ describe('sampleSource', () => {
     expect(samples?.field('precipitation', DAY)).toEqual({ usable: false, missingHours: [18] });
   });
 
+  it('treats negative precipitation, wave height and wave period as missing', () => {
+    const atmospheric = atmosphericForecast(LISBON, {
+      precipitation: (_date, hour) => (hour === 14 ? -0.1 : 0),
+    });
+    expect(sampleSource('ATMOSPHERIC', atmospheric, LISBON)?.field('precipitation', DAY)).toEqual({
+      usable: false,
+      missingHours: [14],
+    });
+    const marine = marineForecast(LISBON, {
+      wave_height: (_date, hour) => (hour === 10 ? -1 : 1.2),
+      wave_period: (_date, hour) => (hour === 11 ? -8 : 12),
+    });
+    const samples = sampleSource('MARINE', marine, LISBON);
+    expect(samples?.field('wave_height', DAY)).toEqual({ usable: false, missingHours: [10] });
+    expect(samples?.field('wave_period', DAY)).toEqual({ usable: false, missingHours: [11] });
+  });
+
   it('accepts a negative temperature', () => {
     const forecast = atmosphericForecast(LISBON, { temperature_2m: -12.5 });
     const samples = sampleSource('ATMOSPHERIC', forecast, LISBON);
@@ -124,21 +162,13 @@ describe('sampleSource', () => {
   });
 
   it('returns null when a required local hour has no instant', () => {
-    const forecast = atmosphericForecast(LISBON);
     const at18 = Date.parse(`${LISBON.dates[6]}T18:00:00Z`) / 1000;
-    const index = forecast.hourly.time.indexOf(at18);
-    forecast.hourly.time.splice(index, 1);
-    for (const values of Object.values(forecast.hourly.series)) {
-      values.splice(index, 1);
-    }
+    const forecast = atmosphericForecast(LISBON);
+    withoutInstant(forecast, at18);
     expect(sampleSource('ATMOSPHERIC', forecast, LISBON)).toBeNull();
     // The marine source never reads 18:00, so the same gap leaves it covered.
     const marine = marineForecast(LISBON);
-    const marineIndex = marine.hourly.time.indexOf(at18);
-    marine.hourly.time.splice(marineIndex, 1);
-    for (const values of Object.values(marine.hourly.series)) {
-      values.splice(marineIndex, 1);
-    }
+    withoutInstant(marine, at18);
     expect(sampleSource('MARINE', marine, LISBON)).not.toBeNull();
   });
 

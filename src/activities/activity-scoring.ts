@@ -77,7 +77,7 @@ const RULES: Readonly<Record<Activity, ActivityRule>> = {
         maxWindKmh: max(values('wind_speed_10m')),
       };
       const score = skiingScore(inputs);
-      const measured = `mean snow depth ${metres(inputs.meanSnowDepthM)}, mean ${celsius(inputs.meanTemperatureC)} and wind up to ${kmh(inputs.maxWindKmh)} from 09:00 to 17:00`;
+      const measured = `mean snow depth ${snowDepth(inputs.meanSnowDepthM)}, mean ${celsius(inputs.meanTemperatureC)} and wind up to ${kmh(inputs.maxWindKmh)} in the 09:00–18:00 window`;
       const reason =
         inputs.meanSnowDepthM === 0
           ? `No snow on the ground: ${measured}.`
@@ -100,7 +100,7 @@ const RULES: Readonly<Record<Activity, ActivityRule>> = {
         score: score.total,
         reason:
           `Median wave height ${metres(inputs.medianWaveHeightM)}, median period ${seconds(inputs.medianWavePeriodS)} ` +
-          `and wind up to ${kmh(inputs.maxWindKmh)} from 09:00 to 17:00, at a model grid point ` +
+          `and wind up to ${kmh(inputs.maxWindKmh)} in the 09:00–18:00 window, at a model grid point ` +
           `${kilometres(grid.distanceKm)} away; ${limitation(score)}.`,
       };
     },
@@ -275,12 +275,16 @@ function outdoor(values: Values) {
 function describeOutdoor(inputs: ReturnType<typeof outdoor>['inputs']): string {
   return (
     `mean ${celsius(inputs.meanTemperatureC)}, ${millimetres(inputs.totalPrecipitationMm)} of ` +
-    `precipitation and wind up to ${kmh(inputs.maxWindKmh)} from 09:00 to 18:00`
+    `precipitation and wind up to ${kmh(inputs.maxWindKmh)} in the 09:00–18:00 window`
   );
 }
 
+/**
+ * Names the factor that costs the most points. A day that rounds to 100 is
+ * called ideal, so the text never blames a factor whose printed value is ideal.
+ */
 function limitation(score: WeightedScore): string {
-  const worst = limitingComponent(score);
+  const worst = roundScore(score.total) === 100 ? undefined : limitingComponent(score);
   return worst === undefined ? 'every factor is ideal' : `${worst.label} lowers the score most`;
 }
 
@@ -310,6 +314,12 @@ function capitalize(text: string): string {
 
 const celsius = (value: number) => `${fixed(value, 1)} °C`;
 const metres = (value: number) => `${fixed(value, 2)} m`;
+/**
+ * Snow depth to the millimetre: Open-Meteo reports it in 0.01 m steps, so a
+ * mean of one such reading over nine hours still shows as non-zero.
+ */
+const snowDepth = (value: number) =>
+  value > 0 && Number(fixed(value, 3)) === 0 ? 'under 0.001 m' : `${fixed(value, 3)} m`;
 const millimetres = (value: number) => `${fixed(value, 1)} mm`;
 const kmh = (value: number) => `${fixed(value, 1)} km/h`;
 const seconds = (value: number) => `${fixed(value, 1)} s`;
