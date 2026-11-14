@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Location as LocationRow } from '../generated/prisma/client';
+import { Prisma, type Location as LocationRow } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Location } from './location';
 import { StorageUnavailableError } from './location.errors';
@@ -72,7 +72,8 @@ export class LocationsRepository {
           create: { ...key, fetchedAt, expiresAt },
           update: { fetchedAt, expiresAt },
         });
-        // Ascending ID order keeps lock order stable between searches sharing locations.
+        // A fixed (lexicographic) ID order keeps lock order stable between searches
+        // that share locations, so concurrent saves cannot deadlock.
         for (const location of [...candidates].sort(compareById)) {
           const { id, ...fields } = location;
           await tx.location.upsert({ where: { id }, create: location, update: fields });
@@ -91,14 +92,40 @@ export class LocationsRepository {
     );
   }
 
+  /**
+   * Runs a database operation and reports an unreachable or failing database as
+   * StorageUnavailableError. Anything else, such as a constraint violation from a
+   * schema mismatch or a programming error, is rethrown unchanged.
+   */
   private async storage<T>(operation: string, run: () => Promise<T>): Promise<T> {
     try {
       return await run();
     } catch (error) {
-      this.logger.error(`Could not ${operation}: ${String(error)}`);
+      if (!isStorageFailure(error)) {
+        throw error;
+      }
+      this.logger.error(`Could not ${operation}`, error instanceof Error ? error.stack : error);
       throw new StorageUnavailableError(`Could not ${operation}.`, { cause: error });
     }
   }
+}
+
+/**
+ * Prisma error codes for an unreachable, overloaded or conflicting database:
+ * P1xxx connection and server errors, P2024 pool timeout, P2028 transaction API
+ * error, P2034 write conflict or deadlock. https://www.prisma.io/docs/orm/reference/error-reference
+ */
+const STORAGE_FAILURE_CODES = new Set(['P2024', 'P2028', 'P2034']);
+
+function isStorageFailure(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code.startsWith('P1') || STORAGE_FAILURE_CODES.has(error.code);
+  }
+  return (
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientInitializationError ||
+    error instanceof Prisma.PrismaClientRustPanicError
+  );
 }
 
 /** '' stands for "no country filter" in the cache key (see prisma/schema.prisma). */

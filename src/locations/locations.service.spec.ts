@@ -7,7 +7,7 @@ import { LocationsRepository } from './locations.repository';
 import { LocationsService, SEARCH_EMPTY_TTL_MS, SEARCH_MATCH_TTL_MS } from './locations.service';
 import { OpenMeteoGeocodingClient } from './open-meteo-geocoding.client';
 
-const NOW = '2026-11-14T12:00:00.000Z';
+const NOW = new Date('2026-11-14T12:00:00.000Z');
 
 function location(id: string): Location {
   return {
@@ -22,12 +22,16 @@ function location(id: string): Location {
 }
 
 async function createService() {
-  const repository = {
-    findLocation: jest.fn<Promise<Location | null>, [string]>().mockResolvedValue(null),
+  const repository: jest.Mocked<
+    Pick<LocationsRepository, 'findLocation' | 'findFreshSearch' | 'saveSearch'>
+  > = {
+    findLocation: jest.fn().mockResolvedValue(null),
     findFreshSearch: jest.fn().mockResolvedValue(null),
     saveSearch: jest.fn().mockResolvedValue(undefined),
   };
-  const geocoding = { search: jest.fn<Promise<Location[]>, [string, string | null]>() };
+  const geocoding: jest.Mocked<Pick<OpenMeteoGeocodingClient, 'search'>> = {
+    search: jest.fn(),
+  };
   const moduleRef = await Test.createTestingModule({
     providers: [
       LocationsService,
@@ -40,60 +44,61 @@ async function createService() {
 }
 
 describe('LocationsService', () => {
-  it('maps one, several and no candidates to resolved, ambiguous and not-found', async () => {
+  it.each([
+    ['one candidate resolves', [location('1')], { kind: 'resolved', location: location('1') }],
+    [
+      'several candidates are ambiguous',
+      [location('1'), location('2')],
+      { kind: 'ambiguous', candidates: [location('1'), location('2')] },
+    ],
+    [
+      'no candidate is not-found',
+      [],
+      { kind: 'not_found', message: 'No location matches "Nowhere" in US.' },
+    ],
+  ])('%s', async (_label, candidates, expected) => {
     const { service, geocoding } = await createService();
-    geocoding.search
-      .mockResolvedValueOnce([location('1')])
-      .mockResolvedValueOnce([location('1'), location('2')])
-      .mockResolvedValueOnce([]);
+    geocoding.search.mockResolvedValue(candidates);
 
-    await expect(service.resolve({ city: 'A1' })).resolves.toMatchObject({ kind: 'resolved' });
-    await expect(service.resolve({ city: 'A2' })).resolves.toMatchObject({
-      kind: 'ambiguous',
-      candidates: [{ id: '1' }, { id: '2' }],
-    });
-    await expect(service.resolve({ city: 'A3', countryCode: 'us' })).resolves.toEqual({
-      kind: 'not_found',
-      message: 'No location matches "A3" in US.',
-    });
+    await expect(service.resolve({ city: ' Nowhere ', countryCode: 'us' })).resolves.toEqual(
+      expected,
+    );
   });
 
-  it('sends the normalized query and caches under the lowercased key with the TTL for the outcome', async () => {
+  it('sends the normalized query and caches under it with the TTL for the outcome', async () => {
     const { service, repository, geocoding } = await createService();
     geocoding.search.mockResolvedValueOnce([location('1')]).mockResolvedValueOnce([]);
 
     await service.search('  Spring   Field ', 'us');
     await service.search('Nowhere');
 
-    expect(geocoding.search).toHaveBeenNthCalledWith(1, 'Spring Field', 'US');
-    expect(repository.findFreshSearch).toHaveBeenNthCalledWith(
-      1,
-      'spring field',
-      'US',
-      new Date(NOW),
-    );
-    const fetchedAt = new Date(NOW);
+    expect(geocoding.search).toHaveBeenNthCalledWith(1, 'spring field', 'US');
+    expect(repository.findFreshSearch).toHaveBeenNthCalledWith(1, 'spring field', 'US', NOW);
     expect(repository.saveSearch).toHaveBeenNthCalledWith(
       1,
       'spring field',
       'US',
       [location('1')],
-      fetchedAt,
-      new Date(fetchedAt.getTime() + SEARCH_MATCH_TTL_MS),
+      NOW,
+      new Date(NOW.getTime() + SEARCH_MATCH_TTL_MS),
     );
     expect(repository.saveSearch).toHaveBeenNthCalledWith(
       2,
       'nowhere',
       null,
       [],
-      fetchedAt,
-      new Date(fetchedAt.getTime() + SEARCH_EMPTY_TTL_MS),
+      NOW,
+      new Date(NOW.getTime() + SEARCH_EMPTY_TTL_MS),
     );
   });
 
   it('serves a fresh cache entry without calling the provider', async () => {
     const { service, repository, geocoding } = await createService();
-    repository.findFreshSearch.mockResolvedValue({ candidates: [location('7')] });
+    repository.findFreshSearch.mockResolvedValue({
+      candidates: [location('7')],
+      fetchedAt: NOW,
+      expiresAt: NOW,
+    });
 
     await expect(service.search('Springfield')).resolves.toEqual([location('7')]);
     expect(geocoding.search).not.toHaveBeenCalled();
@@ -140,12 +145,24 @@ describe('LocationsService', () => {
     expect(geocoding.search).not.toHaveBeenCalled();
   });
 
-  it.each(['abc', '0', '007', '1.5', '12345678901234567'])(
-    'answers not-found for the non-canonical ID %j without a database read',
+  it('names a well-formed unknown ID in the not-found message', async () => {
+    const { service } = await createService();
+
+    await expect(service.resolve({ locationId: '999999999' })).resolves.toEqual({
+      kind: 'not_found',
+      message: 'No stored location has ID "999999999".',
+    });
+  });
+
+  it.each(['abc', '0', '007', '1.5', '12345678901234567', '9'.repeat(200)])(
+    'answers not-found for the non-canonical ID %j without a database read or echo',
     async (locationId) => {
       const { service, repository } = await createService();
 
-      await expect(service.resolve({ locationId })).resolves.toMatchObject({ kind: 'not_found' });
+      await expect(service.resolve({ locationId })).resolves.toEqual({
+        kind: 'not_found',
+        message: 'No stored location has the given ID.',
+      });
       expect(repository.findLocation).not.toHaveBeenCalled();
     },
   );

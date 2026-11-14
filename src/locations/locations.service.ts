@@ -59,7 +59,7 @@ export class LocationsService {
         ? await this.repository.findLocation(selector.locationId)
         : null;
       return location === null
-        ? { kind: 'not_found', message: `No stored location has ID "${selector.locationId}".` }
+        ? { kind: 'not_found', message: unknownIdMessage(selector.locationId) }
         : { kind: 'resolved', location };
     }
 
@@ -75,7 +75,7 @@ export class LocationsService {
 
   private async searchNormalized(search: CitySearch): Promise<Location[]> {
     const cached = await this.repository.findFreshSearch(
-      search.cacheKey,
+      search.query,
       search.countryCode,
       this.clock.now(),
     );
@@ -87,10 +87,11 @@ export class LocationsService {
     // are never cached, and an existing entry for the key is left as it was.
     const candidates = await this.geocoding.search(search.query, search.countryCode);
 
+    // Taken after the provider answers, so the TTL runs from when the data was fetched.
     const fetchedAt = this.clock.now();
     const ttl = candidates.length > 0 ? SEARCH_MATCH_TTL_MS : SEARCH_EMPTY_TTL_MS;
     await this.repository.saveSearch(
-      search.cacheKey,
+      search.query,
       search.countryCode,
       candidates,
       fetchedAt,
@@ -100,7 +101,14 @@ export class LocationsService {
   }
 }
 
+function unknownIdMessage(locationId: string): string {
+  // Echo only IDs of the provider's form; anything else may be arbitrarily long.
+  return CANONICAL_LOCATION_ID.test(locationId)
+    ? `No stored location has ID "${locationId}".`
+    : 'No stored location has the given ID.';
+}
+
 function notFoundMessage(search: CitySearch): string {
   const country = search.countryCode === null ? '' : ` in ${search.countryCode}`;
-  return `No location matches "${search.query}"${country}.`;
+  return `No location matches "${search.label}"${country}.`;
 }

@@ -10,35 +10,22 @@ import {
   SPRINGFIELD_MO,
   type RawResult,
 } from '../../test/fixtures/open-meteo-geocoding';
+import { rejected, thrown } from '../../test/support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../test/support/fixture-fetch';
 import { GeocodingUnavailableError } from './location.errors';
 import {
   GEOCODING_REQUEST_COUNT,
+  GEOCODING_TIMEOUT_MS,
   OpenMeteoGeocodingClient,
   parseGeocodingResponse,
 } from './open-meteo-geocoding.client';
 
-async function geocodingError(promise: Promise<unknown>): Promise<GeocodingUnavailableError> {
-  const error: unknown = await promise.then(
-    () => undefined,
-    (rejection: unknown) => rejection,
-  );
-  if (!(error instanceof GeocodingUnavailableError)) {
-    throw new Error(`expected a GeocodingUnavailableError, got ${String(error)}`);
-  }
-  return error;
+function geocodingError(promise: Promise<unknown>): Promise<GeocodingUnavailableError> {
+  return rejected(promise, GeocodingUnavailableError);
 }
 
 function syncGeocodingError(run: () => unknown): GeocodingUnavailableError {
-  try {
-    run();
-  } catch (error) {
-    if (error instanceof GeocodingUnavailableError) {
-      return error;
-    }
-    throw error;
-  }
-  throw new Error('expected a GeocodingUnavailableError');
+  return thrown(run, GeocodingUnavailableError);
 }
 
 describe('OpenMeteoGeocodingClient', () => {
@@ -62,6 +49,17 @@ describe('OpenMeteoGeocodingClient', () => {
     expect(url.searchParams.get('countryCode')).toBe('BR');
     expect(url.searchParams.get('format')).toBe('json');
     expect(fetch.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('limits each attempt to five seconds', async () => {
+    const timeout = jest.spyOn(AbortSignal, 'timeout');
+    const fetch = fixtureFetch(() => jsonResponse(NO_MATCH));
+
+    await new OpenMeteoGeocodingClient(fetch).search('Berlin', null);
+
+    expect(GEOCODING_TIMEOUT_MS).toBe(5000);
+    expect(timeout).toHaveBeenCalledWith(5000);
+    timeout.mockRestore();
   });
 
   it('omits countryCode for an unfiltered search', async () => {
@@ -120,10 +118,27 @@ describe('OpenMeteoGeocodingClient', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it('reports the second failure when the retry fails differently', async () => {
+    let attempt = 0;
+    const fetch = fixtureFetch(() => {
+      attempt += 1;
+      if (attempt === 1) {
+        throw timeoutError();
+      }
+      return jsonResponse({}, 503);
+    });
+
+    const error = await geocodingError(new OpenMeteoGeocodingClient(fetch).search('Berlin', null));
+
+    expect(error.kind).toBe('UPSTREAM_FAILURE');
+    expect(error.message).toContain('HTTP 503');
+  });
+
   it.each([
     ['a timeout', () => Promise.reject(timeoutError()), 'TIMEOUT'],
     ['a network error', () => Promise.reject(new TypeError('fetch failed')), 'NETWORK'],
     ['HTTP 503', () => Promise.resolve(jsonResponse({}, 503)), 'UPSTREAM_FAILURE'],
+    ['HTTP 500', () => Promise.resolve(jsonResponse({}, 500)), 'UPSTREAM_FAILURE'],
   ] as const)('fails after two attempts on %s', async (_label, reply, kind) => {
     const fetch = fixtureFetch(reply);
 
@@ -136,6 +151,7 @@ describe('OpenMeteoGeocodingClient', () => {
 
   it.each([
     ['HTTP 429', () => jsonResponse({}, 429), 'RATE_LIMITED'],
+    ['HTTP 404', () => jsonResponse({}, 404), 'UPSTREAM_FAILURE'],
     [
       'HTTP 400 with the error envelope',
       () => jsonResponse(PROVIDER_ERROR, 400),
@@ -170,17 +186,19 @@ describe('parseGeocodingResponse', () => {
     );
   });
 
-  it('rejects the error envelope even on HTTP 200', () => {
+  it('rejects the error envelope even on HTTP 200, keeping the reason out of the message', () => {
     const error = syncGeocodingError(() => parseGeocodingResponse(PROVIDER_ERROR, null));
 
     expect(error.kind).toBe('UPSTREAM_FAILURE');
-    expect(error.message).toContain('count must be between 1 and 100');
+    expect(error.message).toBe('Geocoding reported an error.');
+    expect(error.cause).toBe('Parameter count must be between 1 and 100.');
   });
 
   it.each<[string, RawResult]>([
     ['a missing time zone', { ...BERLIN_DE, timezone: undefined }],
     ['a blank time zone', { ...BERLIN_DE, timezone: ' ' }],
     ['an unknown time zone', { ...BERLIN_DE, timezone: 'Mars/Olympus_Mons' }],
+    ['a UTC offset instead of a time zone name', { ...BERLIN_DE, timezone: '+01:00' }],
     ['a missing latitude', { ...BERLIN_DE, latitude: undefined }],
     ['a latitude out of range', { ...BERLIN_DE, latitude: 90.5 }],
     ['a longitude out of range', { ...BERLIN_DE, longitude: -180.1 }],
@@ -197,7 +215,7 @@ describe('parseGeocodingResponse', () => {
     ]);
   });
 
-  it('never defaults a missing time zone or coordinates: wholly unusable results fail', () => {
+  it('fails on wholly unusable results instead of defaulting a time zone or coordinates', () => {
     const body = resultsBody(
       { ...BERLIN_DE, timezone: undefined },
       { ...SPRINGFIELD_IL, latitude: null },
