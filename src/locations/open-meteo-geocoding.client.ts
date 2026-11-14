@@ -69,7 +69,7 @@ function toGeocodingError(error: UpstreamRequestError): GeocodingUnavailableErro
   const kind: GeocodingFailureKind =
     error.kind === 'HTTP_ERROR'
       ? 'UPSTREAM_FAILURE'
-      : error.kind === 'INVALID_JSON'
+      : error.kind === 'INVALID_JSON' || error.kind === 'TOO_LARGE'
         ? 'INVALID_PAYLOAD'
         : error.kind;
   return new GeocodingUnavailableError(kind, error.message, {
