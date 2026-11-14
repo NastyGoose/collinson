@@ -1,7 +1,5 @@
-import { GraphQLError } from 'graphql';
 import { PENICHE } from '../../test/fixtures/open-meteo-weather';
 import { atmosphericForecast, marineForecast } from '../../test/fixtures/scoring-weather';
-import { rejected } from '../../test/support/errors';
 import { FixedClock } from '../../test/support/fixed-clock';
 import { ForecastStorageUnavailableError } from '../forecasts/forecast.errors';
 import { forecastWindow, type ForecastWindow } from '../forecasts/forecast-window';
@@ -205,59 +203,23 @@ describe('ActivityForecastResolver.activityForecast', () => {
   });
 
   it.each([
-    [
-      'invalid input',
-      new InvalidLocationInputError('city is too short.', 'city'),
-      'BAD_USER_INPUT',
-    ],
-    [
-      'a geocoding failure',
-      new GeocodingUnavailableError('TIMEOUT', 'Geocoding timed out.'),
-      'GEOCODING_UNAVAILABLE',
-    ],
-    [
-      'a location storage failure',
-      new StorageUnavailableError('Could not read.'),
-      'STORAGE_UNAVAILABLE',
-    ],
-  ])('maps %s while resolving to %s', async (_name, failure, code) => {
-    const { locations, resolver } = setup();
+    ['invalid input', new InvalidLocationInputError('city is too short.', 'city')],
+    ['a geocoding failure', new GeocodingUnavailableError('TIMEOUT', 'Geocoding timed out.')],
+    ['a location storage failure', new StorageUnavailableError('Could not read.')],
+  ])('leaves %s while resolving to DomainErrorFilter', async (_name, failure) => {
+    const { locations, forecasts, resolver } = setup();
     locations.resolve.mockRejectedValue(failure);
 
-    const error = await rejected(resolver.activityForecast({ city: 'x' }), GraphQLError);
-
-    expect(error.message).toBe(failure.message);
-    expect(error.extensions.code).toBe(code);
+    await expect(resolver.activityForecast({ city: 'x' })).rejects.toBe(failure);
+    expect(forecasts.getWeather).not.toHaveBeenCalled();
   });
 
-  it('names the field at fault in a BAD_USER_INPUT error', async () => {
-    const { locations, resolver } = setup();
-    locations.resolve.mockRejectedValue(
-      new InvalidLocationInputError('countryCode applies to a city search only.', 'countryCode'),
-    );
-
-    const error = await rejected(resolver.activityForecast({ locationId: '1' }), GraphQLError);
-
-    expect(error.extensions).toEqual({ code: 'BAD_USER_INPUT', field: 'countryCode' });
-  });
-
-  it('maps a forecast storage failure to STORAGE_UNAVAILABLE', async () => {
+  it('leaves a forecast storage failure to DomainErrorFilter', async () => {
     const { forecasts, resolver } = setup();
-    forecasts.getWeather.mockRejectedValue(
-      new ForecastStorageUnavailableError('Could not read a forecast snapshot.'),
-    );
+    const failure = new ForecastStorageUnavailableError('Could not read a forecast snapshot.');
+    forecasts.getWeather.mockRejectedValue(failure);
 
-    const error = await rejected(resolver.activityForecast({ city: 'Peniche' }), GraphQLError);
-
-    expect(error.extensions).toEqual({ code: 'STORAGE_UNAVAILABLE' });
-  });
-
-  it('rethrows an unexpected error unchanged for the error formatter to mask', async () => {
-    const { forecasts, resolver } = setup();
-    const bug = new Error('window time zone mismatch');
-    forecasts.getWeather.mockRejectedValue(bug);
-
-    await expect(resolver.activityForecast({ city: 'Peniche' })).rejects.toBe(bug);
+    await expect(resolver.activityForecast({ city: 'Peniche' })).rejects.toBe(failure);
   });
 });
 
@@ -268,17 +230,6 @@ describe('ActivityForecastResolver.searchLocations', () => {
 
     await expect(resolver.searchLocations('Peniche', 'pt')).resolves.toEqual([PENICHE, OTHER]);
     expect(locations.search).toHaveBeenCalledWith('Peniche', 'pt');
-  });
-
-  it('maps a geocoding failure to GEOCODING_UNAVAILABLE', async () => {
-    const { locations, resolver } = setup();
-    locations.search.mockRejectedValue(
-      new GeocodingUnavailableError('UPSTREAM_FAILURE', 'Geocoding is unavailable.'),
-    );
-
-    const error = await rejected(resolver.searchLocations('Peniche'), GraphQLError);
-
-    expect(error.extensions).toEqual({ code: 'GEOCODING_UNAVAILABLE' });
   });
 });
 
