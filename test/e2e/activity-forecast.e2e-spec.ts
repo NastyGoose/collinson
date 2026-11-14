@@ -519,6 +519,37 @@ describe('activity forecast GraphQL contract (e2e)', () => {
     }
   });
 
+  it('reports each source on its own: a refreshed atmosphere beside a stale marine snapshot', async () => {
+    await forecast({ city: 'Peniche' });
+    // Past the six-hour freshness limit, within the 24-hour stale fallback, same local date.
+    clock.set('2026-11-14T19:00:00.000Z');
+    upstream.marine = () => jsonResponse({ error: true, reason: 'Too many requests' }, 429);
+
+    const result = await forecast({ city: 'Peniche' });
+
+    expect(result.sources).toEqual([
+      {
+        source: 'ATMOSPHERIC',
+        freshness: 'FRESH',
+        fetchedAt: '2026-11-14T19:00:00.000Z',
+        failureCode: null,
+        reason: null,
+      },
+      expect.objectContaining({
+        source: 'MARINE',
+        freshness: 'STALE',
+        fetchedAt: NOON,
+        failureCode: 'RATE_LIMITED',
+        reason: expect.any(String),
+      }),
+    ]);
+    const surfing = (
+      result.activities as { activity: string; days: Record<string, unknown>[] }[]
+    )[1];
+    expect(surfing.activity).toBe('SURFING');
+    expect(surfing.days.every((day) => day.availability === 'AVAILABLE')).toBe(true);
+  });
+
   it('returns 28 dated entries with null scores during a complete weather outage', async () => {
     upstream.atmospheric = () => jsonResponse({ error: true, reason: 'down' }, 503);
     upstream.marine = () => jsonResponse({ error: true, reason: 'down' }, 503);

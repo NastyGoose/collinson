@@ -7,7 +7,8 @@ import { InvalidLocationInputError, LocationError } from '../locations/location.
  * Maps the domain errors the Technical Design assigns a GraphQL code to a
  * GraphQLError with that `extensions.code`: BAD_USER_INPUT (with the input field
  * at fault), GEOCODING_UNAVAILABLE and STORAGE_UNAVAILABLE. Their messages are
- * written for clients and carry no provider or database text.
+ * written for clients: at most a provider status or timeout, never a provider
+ * payload or database text.
  *
  * As a filter it also keeps these expected outcomes out of Nest's exception log;
  * any other error still reaches that log and is then masked by `formatGraphQLError`.
