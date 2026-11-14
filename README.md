@@ -13,7 +13,9 @@ A backend assessment service. Given a city or town, it ranks the next seven days
 
 The service skeleton is in place (ARC-44): NestJS with a schema-first GraphQL endpoint, PostgreSQL through Docker Compose, Prisma with checked-in migrations, and unit, integration and E2E test tiers. The only query so far is `health`.
 
-Location resolution (ARC-45) is implemented as a service, not yet exposed over GraphQL. It geocodes a city through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api), stores locations under their stable Open-Meteo IDs, caches searches by normalized city and country filter (24 hours for matches, one hour for a genuine no-match, provider failures never cached, expired entries purged on later fetches) and resolves a stored ID without geocoding. Forecast persistence, scoring and the GraphQL `locations` and `activityForecast` queries arrive in ARC-46 to ARC-48.
+Location resolution (ARC-45) is implemented as a service, not yet exposed over GraphQL. It geocodes a city through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api), stores locations under their stable Open-Meteo IDs, caches searches by normalized city and country filter (24 hours for matches, one hour for a genuine no-match, provider failures never cached, expired entries purged on later fetches) and resolves a stored ID without geocoding. Scoring and the GraphQL `locations` and `activityForecast` queries arrive in ARC-47 and ARC-48.
+
+Forecast persistence (ARC-46) is implemented as a service, not yet exposed over GraphQL. It fetches eight days of hourly weather from the [Open-Meteo forecast](https://open-meteo.com/en/docs) and [marine](https://open-meteo.com/en/docs/marine-weather-api) APIs as two independent sources, validates units, timestamps and array alignment while keeping null measurements, and stores one normalized snapshot per location, source and request schema version in PostgreSQL. A snapshot is reused while it is under six hours old and still covers the required local hours of the seven requested dates. Concurrent refreshes of the same location and source share one request; each attempt has a five-second timeout and timeouts, network errors and 5xx answers are retried once. A refresh that fails or does not validate never replaces the stored snapshot, which is then served as stale for up to 24 hours if it still covers the dates; otherwise the source is reported unavailable.
 
 ## Prerequisites
 
@@ -54,7 +56,7 @@ Expected response:
 
 ```bash
 npm test                   # unit tests, no database
-npm run test:integration   # migrations and location persistence against a fresh PostgreSQL database
+npm run test:integration   # migrations, location and forecast persistence against a fresh PostgreSQL database
 npm run test:e2e           # GraphQL over HTTP against a fresh PostgreSQL database
 npm run typecheck
 npm run lint
