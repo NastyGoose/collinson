@@ -102,13 +102,24 @@ describe('scoreActivities', () => {
     expect(day(scores, 'INDOOR_SIGHTSEEING', D1)).toMatchObject({ score: 55 });
   });
 
-  it('calls a day that rounds to 100 ideal rather than blaming a factor', () => {
-    const scores = score({ temperature_2m: 19.96, wind_speed_10m: 5 });
+  it('calls a day ideal only when no factor loses points', () => {
+    const scores = score({ temperature_2m: 20, wind_speed_10m: 5 });
     expect(day(scores, 'OUTDOOR_SIGHTSEEING', D1)).toMatchObject({
       score: 100,
       reason:
         'Mean 20.0 °C, 0.0 mm of precipitation and wind up to 5.0 km/h in the 09:00–18:00 window; ' +
         'every factor is ideal.',
+    });
+  });
+
+  it('calls a day close to ideal when small losses round away to 100', () => {
+    // 10.5 km/h costs 0.33 points: 99.67 rounds to 100, so no single factor is blamed.
+    const scores = score({ wind_speed_10m: 10.5 });
+    expect(day(scores, 'OUTDOOR_SIGHTSEEING', D1)).toMatchObject({
+      score: 100,
+      reason:
+        'Mean 20.0 °C, 0.0 mm of precipitation and wind up to 10.5 km/h in the 09:00–18:00 window; ' +
+        'conditions are close to ideal.',
     });
   });
 
