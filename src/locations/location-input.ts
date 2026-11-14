@@ -5,10 +5,14 @@ export const CITY_MAX_LENGTH = 120;
 
 /** A validated city search. */
 export interface CitySearch {
-  /** Trimmed, NFC-normalized city text with whitespace runs collapsed; sent to the provider. */
+  /**
+   * The search as sent to the provider and used as the cache key: NFKC-normalized,
+   * trimmed, whitespace runs collapsed and lowercased. Sending the key itself keeps
+   * every input that shares a cache entry asking the provider the same question.
+   */
   query: string;
-  /** `query` lowercased: the search cache key. The provider matches case-insensitively. */
-  cacheKey: string;
+  /** The city as given, trimmed and NFC-normalized, for messages. */
+  label: string;
   /** Uppercase ISO 3166-1 alpha-2 filter, or null for no filter. */
   countryCode: string | null;
 }
@@ -24,26 +28,40 @@ export interface LocationSelectorInput {
   locationId?: string | null;
 }
 
-// Control characters never appear in place names; reject them rather than send them upstream.
-const CONTROL_CHARACTERS = /\p{Cc}/u;
+// Whitespace controls (tab, newline) collapse to a space first; any other control
+// character, and any unpaired UTF-16 surrogate, is rejected rather than sent upstream.
+const FORBIDDEN_CHARACTERS = /[\p{Cc}\p{Cs}]/u;
+// Format characters (zero-width space, joiners, direction marks) are allowed inside a
+// name but do not count towards the minimum length, so an invisible city is rejected.
+const FORMAT_CHARACTERS = /\p{Cf}/gu;
 const COUNTRY_CODE = /^[A-Za-z]{2}$/;
 
 export function normalizeCitySearch(city: string, countryCode?: string | null): CitySearch {
-  const query = city.normalize('NFC').trim().replace(/\s+/gu, ' ');
-  // Length counts Unicode code points, so "Łódź" is four characters, not more.
-  const length = Array.from(query).length;
+  const label = collapseWhitespace(city.normalize('NFC'));
+  // Lengths count Unicode code points, so a character outside the Basic Multilingual
+  // Plane counts once, not as two UTF-16 units.
+  const length = Array.from(label).length;
+  const visibleLength = Array.from(label.replace(FORMAT_CHARACTERS, '')).length;
 
-  if (length < CITY_MIN_LENGTH || length > CITY_MAX_LENGTH) {
+  if (visibleLength < CITY_MIN_LENGTH || length > CITY_MAX_LENGTH) {
     throw new InvalidLocationInputError(
-      `city must be ${CITY_MIN_LENGTH} to ${CITY_MAX_LENGTH} characters after trimming, got ${length}.`,
+      `city must be ${CITY_MIN_LENGTH} to ${CITY_MAX_LENGTH} characters after trimming.`,
       'city',
     );
   }
-  if (CONTROL_CHARACTERS.test(query)) {
+  if (FORBIDDEN_CHARACTERS.test(label)) {
     throw new InvalidLocationInputError('city must not contain control characters.', 'city');
   }
 
-  return { query, cacheKey: query.toLowerCase(), countryCode: normalizeCountryCode(countryCode) };
+  return {
+    query: collapseWhitespace(label.normalize('NFKC')).toLowerCase(),
+    label,
+    countryCode: normalizeCountryCode(countryCode),
+  };
+}
+
+function collapseWhitespace(text: string): string {
+  return text.trim().replace(/\s+/gu, ' ');
 }
 
 function normalizeCountryCode(countryCode: string | null | undefined): string | null {

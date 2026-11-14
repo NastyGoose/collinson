@@ -1,45 +1,43 @@
+import { thrown } from '../../test/support/errors';
 import { normalizeCitySearch, parseLocationSelector } from './location-input';
 import { InvalidLocationInputError } from './location.errors';
 
 function inputError(run: () => unknown): InvalidLocationInputError {
-  try {
-    run();
-  } catch (error) {
-    if (error instanceof InvalidLocationInputError) {
-      return error;
-    }
-    throw error;
-  }
-  throw new Error('expected an InvalidLocationInputError');
+  return thrown(run, InvalidLocationInputError);
 }
 
 describe('normalizeCitySearch', () => {
-  it('trims the city and collapses inner whitespace', () => {
+  it('trims the city, collapses inner whitespace and lowercases the query', () => {
     expect(normalizeCitySearch('  New \t  York  ')).toEqual({
-      query: 'New York',
-      cacheKey: 'new york',
+      query: 'new york',
+      label: 'New York',
       countryCode: null,
     });
   });
 
   it('keeps Unicode names and composes them to NFC', () => {
-    const decomposed = 'São Paulo';
+    const search = normalizeCitySearch('São Paulo');
 
-    const search = normalizeCitySearch(decomposed);
+    expect(search.label).toBe('São Paulo');
+    expect(search.query).toBe('são paulo');
+  });
 
-    expect(search.query).toBe('São Paulo');
-    expect(search.query).toBe('São Paulo');
-    expect(search.cacheKey).toBe('são paulo');
+  it('folds compatibility characters, so look-alike spellings share one query', () => {
+    // U+212A KELVIN SIGN lowercases to "k"; NFKC first maps it to the letter K.
+    expect(normalizeCitySearch('Kiev').query).toBe(normalizeCitySearch('Kiev').query);
+    expect(normalizeCitySearch('Ｂerlin').query).toBe('berlin');
   });
 
   it('counts code points, so a two-character CJK name is valid', () => {
-    expect(normalizeCitySearch('東京').query).toBe('東京');
+    expect(normalizeCitySearch('東京').label).toBe('東京');
   });
 
   it.each([
     ['empty', ''],
     ['whitespace only', ' \t\n '],
     ['one character after trimming', '  A  '],
+    ['only zero-width characters', '​​​'],
+    ['one letter padded with zero-width characters', 'A​‍'],
   ])('rejects a city that is %s', (_label, city) => {
     const error = inputError(() => normalizeCitySearch(city));
 
@@ -47,17 +45,30 @@ describe('normalizeCitySearch', () => {
     expect(error.field).toBe('city');
   });
 
+  it('allows format characters inside a longer name', () => {
+    expect(normalizeCitySearch('Mehr‌abad').label).toBe('Mehr‌abad');
+  });
+
   it('accepts exactly 120 characters and rejects 121', () => {
-    expect(normalizeCitySearch('a'.repeat(120)).query).toHaveLength(120);
+    expect(normalizeCitySearch('a'.repeat(120)).label).toHaveLength(120);
     expect(inputError(() => normalizeCitySearch('a'.repeat(121))).field).toBe('city');
   });
 
-  it('measures the length after trimming', () => {
-    expect(normalizeCitySearch(`   ${'a'.repeat(120)}   `).query).toHaveLength(120);
+  it('measures the 120-character limit in code points, not UTF-16 units', () => {
+    expect(Array.from(normalizeCitySearch('😀'.repeat(120)).label)).toHaveLength(120);
+    expect(inputError(() => normalizeCitySearch('😀'.repeat(121))).field).toBe('city');
   });
 
-  it('rejects control characters', () => {
-    expect(inputError(() => normalizeCitySearch('Ber\u0000lin')).field).toBe('city');
+  it('measures the length after trimming', () => {
+    expect(normalizeCitySearch(`   ${'a'.repeat(120)}   `).label).toHaveLength(120);
+  });
+
+  it.each([
+    ['a NUL character', 'Ber\u0000lin'],
+    ['an escape character', 'Ber\u001Blin'],
+    ['an unpaired surrogate', 'Ber\uD800lin'],
+  ])('rejects %s', (_label, city) => {
+    expect(inputError(() => normalizeCitySearch(city)).field).toBe('city');
   });
 
   it('normalizes the country filter to uppercase', () => {
@@ -78,7 +89,7 @@ describe('parseLocationSelector', () => {
   it('selects a city search', () => {
     expect(parseLocationSelector({ city: ' Berlin ', countryCode: 'de' })).toEqual({
       kind: 'city',
-      search: { query: 'Berlin', cacheKey: 'berlin', countryCode: 'DE' },
+      search: { query: 'berlin', label: 'Berlin', countryCode: 'DE' },
     });
   });
 

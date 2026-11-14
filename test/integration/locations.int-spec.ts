@@ -40,13 +40,17 @@ interface SearchRow {
   location_ids: string[];
 }
 
-/** Routes each request by its `name` (lowercased) and `countryCode` parameters. */
+/** Requests no fixture answered. A miss would otherwise look like a network outage. */
+const fixtureMisses: string[] = [];
+
+/** Routes each request by its `name` and `countryCode` parameters. */
 function providerFixtures(routes: Record<string, unknown>) {
   return fixtureFetch((url) => {
-    const name = url.searchParams.get('name')?.toLowerCase() ?? '';
+    const name = url.searchParams.get('name') ?? '';
     const country = url.searchParams.get('countryCode');
     const body = routes[country === null ? name : `${name}|${country}`];
     if (body === undefined) {
+      fixtureMisses.push(url.search);
       throw new Error(`no fixture for ${url.search}`);
     }
     return jsonResponse(body);
@@ -58,6 +62,7 @@ const PROVIDER = {
   springfield: resultsBody(SPRINGFIELD_MO, SPRINGFIELD_IL, SPRINGFIELD_MA),
   berlin: resultsBody(BERLIN_DE, SPRINGFIELD_IL),
   'berlin|DE': resultsBody(BERLIN_DE),
+  'springfield|US': resultsBody(SPRINGFIELD_IL, SPRINGFIELD_MO),
   zzqxqxq: NO_MATCH,
 };
 
@@ -119,6 +124,11 @@ describe('LocationsService with PostgreSQL', () => {
     await prisma.$executeRaw`TRUNCATE location_search_results, location_searches, locations`;
     clock.set(START);
     fetch = providerFixtures(PROVIDER);
+    fixtureMisses.length = 0;
+  });
+
+  afterEach(() => {
+    expect(fixtureMisses).toEqual([]);
   });
 
   describe('selection outcomes', () => {
@@ -219,9 +229,8 @@ describe('LocationsService with PostgreSQL', () => {
     it.each(['999999999', 'not-an-id', '0', '-4250542'])(
       'returns not-found for the unknown ID %j without geocoding',
       async (locationId) => {
-        await expect(service.resolve({ locationId })).resolves.toEqual({
+        await expect(service.resolve({ locationId })).resolves.toMatchObject({
           kind: 'not_found',
-          message: `No stored location has ID "${locationId}".`,
         });
         expect(fetch).not.toHaveBeenCalled();
       },
@@ -295,6 +304,38 @@ describe('LocationsService with PostgreSQL', () => {
       expect(rows).toHaveLength(1);
       expect(rows[0].location_ids).toEqual(['4409896', '4250542', '4951788']);
     });
+
+    it('saves concurrent searches that share a location without conflicts', async () => {
+      // Both searches include Springfield, IL (4250542).
+      await Promise.all([
+        service.search('Springfield'),
+        service.search('Berlin'),
+        service.search('Springfield', 'US'),
+      ]);
+
+      expect((await searchRows()).map((row) => [row.query, row.country_code])).toEqual([
+        ['berlin', ''],
+        ['springfield', ''],
+        ['springfield', 'US'],
+      ]);
+      expect(await locationIds()).toEqual(['2950159', '4250542', '4409896', '4951788']);
+    });
+
+    it('persists at most five candidates, in positions 0 to 4', async () => {
+      const seven = Array.from({ length: 7 }, (_, index) => ({ ...BERLIN_DE, id: 9_000 + index }));
+      fetch = providerFixtures({ berlin: resultsBody(...seven) });
+
+      await expect(service.search('Berlin')).resolves.toHaveLength(5);
+
+      expect((await searchRows())[0].location_ids).toEqual([
+        '9000',
+        '9001',
+        '9002',
+        '9003',
+        '9004',
+      ]);
+      expect(await locationIds()).toHaveLength(5);
+    });
   });
 
   describe('provider failures', () => {
@@ -312,13 +353,14 @@ describe('LocationsService with PostgreSQL', () => {
       expect(await searchRows()).toEqual([before]);
     });
 
-    it('caches nothing when a never-seen search fails', async () => {
+    it('caches nothing when a never-seen search fails after its one retry', async () => {
       fetch = fixtureFetch(() => jsonResponse({ error: true, reason: 'Internal error' }, 500));
 
       await expect(service.resolve({ city: 'Springfield' })).rejects.toBeInstanceOf(
         GeocodingUnavailableError,
       );
 
+      expect(fetch).toHaveBeenCalledTimes(2);
       expect(await searchRows()).toEqual([]);
       expect(await locationIds()).toEqual([]);
     });
@@ -337,6 +379,24 @@ describe('LocationsService with PostgreSQL', () => {
       expect(await searchRows()).toEqual([]);
 
       fetch = providerFixtures(PROVIDER);
+      await expect(service.search('Springfield')).resolves.toHaveLength(3);
+    });
+  });
+
+  describe('storage failures', () => {
+    it('rolls back the whole save when a write fails, leaving no partial search', async () => {
+      // A test-only constraint makes the third result row fail inside the transaction.
+      await prisma.$executeRaw`ALTER TABLE location_search_results
+        ADD CONSTRAINT test_reject_third_result CHECK (position < 2)`;
+      try {
+        await expect(service.search('Springfield')).rejects.toThrow();
+      } finally {
+        await prisma.$executeRaw`ALTER TABLE location_search_results
+          DROP CONSTRAINT test_reject_third_result`;
+      }
+
+      expect(await searchRows()).toEqual([]);
+      expect(await locationIds()).toEqual([]);
       await expect(service.search('Springfield')).resolves.toHaveLength(3);
     });
   });

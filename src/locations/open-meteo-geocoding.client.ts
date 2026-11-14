@@ -5,7 +5,7 @@ import { GeocodingUnavailableError } from './location.errors';
 
 export const OPEN_METEO_GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 
-/** Per-attempt limit, matching the Technical Design's upstream policy. */
+/** Per-attempt limit, reusing the Technical Design's weather-provider policy for consistency. */
 export const GEOCODING_TIMEOUT_MS = 5_000;
 
 /**
@@ -124,8 +124,12 @@ export class OpenMeteoGeocodingClient {
   }
 
   private logFailure(error: unknown): void {
-    const detail = error instanceof GeocodingUnavailableError ? error.kind : String(error);
-    this.logger.warn(`Geocoding unavailable (${detail})`);
+    if (!(error instanceof GeocodingUnavailableError)) {
+      this.logger.warn(`Geocoding unavailable: ${String(error)}`);
+      return;
+    }
+    const reason = typeof error.cause === 'string' ? `: ${error.cause}` : '';
+    this.logger.warn(`Geocoding unavailable (${error.kind})${reason}`);
   }
 }
 
@@ -144,8 +148,10 @@ export function parseGeocodingResponse(body: unknown, countryCode: string | null
     );
   }
   if (body.error === true) {
-    const reason = typeof body.reason === 'string' ? `: ${body.reason}` : '';
-    throw new GeocodingUnavailableError('UPSTREAM_FAILURE', `Geocoding reported an error${reason}`);
+    // The provider's reason stays in the cause for logs, out of the client-facing message.
+    throw new GeocodingUnavailableError('UPSTREAM_FAILURE', 'Geocoding reported an error.', {
+      cause: body.reason,
+    });
   }
   if (body.results === undefined) {
     return [];
@@ -238,7 +244,13 @@ function isCoordinate(value: unknown, limit: number): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
 }
 
+// IANA names such as "Europe/Berlin" or "UTC": no offsets like "+01:00", which Intl also accepts.
+const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/;
+
 function isValidTimeZone(timezone: string): boolean {
+  if (!IANA_TIME_ZONE.test(timezone)) {
+    return false;
+  }
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: timezone });
     return true;
