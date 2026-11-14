@@ -1,0 +1,16 @@
+type Query {
+  "Bootstrap probe: reports whether the API and PostgreSQL respond."
+  health: Health!
+}
+
+enum HealthStatus {
+  UP
+  DOWN
+}
+
+type Health {
+  "UP whenever the GraphQL endpoint answers."
+  service: HealthStatus!
+  "UP when PostgreSQL answers a trivial query through Prisma."
+  database: HealthStatus!
+}
