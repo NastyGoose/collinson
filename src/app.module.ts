@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ClockModule } from './clock/clock.module';
 import { validateEnv } from './config/env';
+import { ForecastsModule } from './forecasts/forecasts.module';
 import { HealthModule } from './health/health.module';
 import { LocationsModule } from './locations/locations.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -23,6 +24,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ClockModule,
     HealthModule,
     LocationsModule,
+    ForecastsModule,
   ],
 })
 export class AppModule {}
