@@ -3,8 +3,10 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
+import { ClockModule } from './clock/clock.module';
 import { validateEnv } from './config/env';
 import { HealthModule } from './health/health.module';
+import { LocationsModule } from './locations/locations.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -18,7 +20,9 @@ import { PrismaModule } from './prisma/prisma.module';
       typePaths: [join(__dirname, '**/*.graphql')],
     }),
     PrismaModule,
+    ClockModule,
     HealthModule,
+    LocationsModule,
   ],
 })
 export class AppModule {}

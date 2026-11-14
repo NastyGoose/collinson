@@ -1,0 +1,123 @@
+import { Injectable, Logger } from '@nestjs/common';
+import type { Location as LocationRow } from '../generated/prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import type { Location } from './location';
+import { StorageUnavailableError } from './location.errors';
+
+/** A cached search as stored: its candidates in provider order (possibly none). */
+export interface CachedSearch {
+  candidates: Location[];
+  fetchedAt: Date;
+  expiresAt: Date;
+}
+
+/**
+ * PostgreSQL access for locations and the search cache. Every database failure
+ * surfaces as StorageUnavailableError. No method calls the geocoding provider.
+ */
+@Injectable()
+export class LocationsRepository {
+  private readonly logger = new Logger(LocationsRepository.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  findLocation(id: string): Promise<Location | null> {
+    return this.storage('read a stored location', async () => {
+      const row = await this.prisma.location.findUnique({ where: { id } });
+      return row === null ? null : toLocation(row);
+    });
+  }
+
+  /** The cached search for this key, or null when there is none or it has expired at `now`. */
+  findFreshSearch(
+    query: string,
+    countryCode: string | null,
+    now: Date,
+  ): Promise<CachedSearch | null> {
+    return this.storage('read the location search cache', async () => {
+      const search = await this.prisma.locationSearch.findUnique({
+        where: { query_countryCode: { query, countryCode: countryKey(countryCode) } },
+        include: { results: { orderBy: { position: 'asc' }, include: { location: true } } },
+      });
+      if (search === null || search.expiresAt.getTime() <= now.getTime()) {
+        return null;
+      }
+      return {
+        candidates: search.results.map((result) => toLocation(result.location)),
+        fetchedAt: search.fetchedAt,
+        expiresAt: search.expiresAt,
+      };
+    });
+  }
+
+  /**
+   * Upserts the candidates by their stable IDs and replaces the cached search with
+   * them, in order, in one transaction. Callers fetch from the provider first:
+   * no upstream I/O happens inside the transaction.
+   */
+  saveSearch(
+    query: string,
+    countryCode: string | null,
+    candidates: Location[],
+    fetchedAt: Date,
+    expiresAt: Date,
+  ): Promise<void> {
+    const key = { query, countryCode: countryKey(countryCode) };
+    return this.storage('save the location search', () =>
+      this.prisma.$transaction(async (tx) => {
+        // The search row first: its upsert locks the key, so concurrent saves of
+        // the same search replace the results one after the other.
+        await tx.locationSearch.upsert({
+          where: { query_countryCode: key },
+          create: { ...key, fetchedAt, expiresAt },
+          update: { fetchedAt, expiresAt },
+        });
+        // Ascending ID order keeps lock order stable between searches sharing locations.
+        for (const location of [...candidates].sort(compareById)) {
+          const { id, ...fields } = location;
+          await tx.location.upsert({ where: { id }, create: location, update: fields });
+        }
+        await tx.locationSearchResult.deleteMany({ where: key });
+        if (candidates.length > 0) {
+          await tx.locationSearchResult.createMany({
+            data: candidates.map((location, position) => ({
+              ...key,
+              position,
+              locationId: location.id,
+            })),
+          });
+        }
+      }),
+    );
+  }
+
+  private async storage<T>(operation: string, run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      this.logger.error(`Could not ${operation}: ${String(error)}`);
+      throw new StorageUnavailableError(`Could not ${operation}.`, { cause: error });
+    }
+  }
+}
+
+/** '' stands for "no country filter" in the cache key (see prisma/schema.prisma). */
+function countryKey(countryCode: string | null): string {
+  return countryCode ?? '';
+}
+
+function compareById(a: Location, b: Location): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+function toLocation(row: LocationRow): Location {
+  return {
+    id: row.id,
+    name: row.name,
+    country: row.country,
+    region: row.region,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    timezone: row.timezone,
+  };
+}
