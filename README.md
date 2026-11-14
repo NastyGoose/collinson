@@ -11,7 +11,9 @@ A backend assessment service. Given a city or town, it ranks the next seven days
 
 ## Status
 
-The service skeleton is in place (ARC-44): NestJS with a schema-first GraphQL endpoint, PostgreSQL through Docker Compose, Prisma with checked-in migrations, and unit, integration and E2E test tiers. The only query so far is `health`. Location resolution, forecast persistence, scoring and the full `activityForecast` contract arrive in ARC-45 to ARC-48.
+The service skeleton is in place (ARC-44): NestJS with a schema-first GraphQL endpoint, PostgreSQL through Docker Compose, Prisma with checked-in migrations, and unit, integration and E2E test tiers. The only query so far is `health`.
+
+Location resolution (ARC-45) is implemented as a service, not yet exposed over GraphQL. It geocodes a city through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api), stores locations under their stable Open-Meteo IDs, caches searches by normalized city and country filter (24 hours for matches, one hour for a genuine no-match, provider failures never cached) and resolves a stored ID without geocoding. Forecast persistence, scoring and the GraphQL `locations` and `activityForecast` queries arrive in ARC-46 to ARC-48.
 
 ## Prerequisites
 
@@ -52,7 +54,7 @@ Expected response:
 
 ```bash
 npm test                   # unit tests, no database
-npm run test:integration   # migrations against a fresh PostgreSQL database
+npm run test:integration   # migrations and location persistence against a fresh PostgreSQL database
 npm run test:e2e           # GraphQL over HTTP against a fresh PostgreSQL database
 npm run typecheck
 npm run lint
@@ -63,7 +65,7 @@ Integration and E2E runs never use the development database. Each run connects t
 
 ## Database migrations
 
-Migrations live in `prisma/migrations` and are applied with `npm run db:migrate`. After changing `prisma/schema.prisma`, create the next migration with `npm run db:migrate:dev -- --name <change>` and commit the generated folder. `npm run db:status` compares a database with the migration history.
+Migrations live in `prisma/migrations` and are applied with `npm run db:migrate`. After changing `prisma/schema.prisma`, create the next migration with `npm run db:migrate:dev -- --name <change>`, regenerate the client with `npm run prisma:generate` (Prisma 7's `migrate dev` no longer does it) and commit the migration folder. `npm run db:status` compares a database with the migration history.
 
 ## Project documents
 
