@@ -93,6 +93,29 @@ export class LocationsRepository {
   }
 
   /**
+   * Deletes up to `limit` searches that expired at or before `now`; their results
+   * cascade. Rows another transaction holds are skipped (SKIP LOCKED), so a purge
+   * never waits on or deadlocks with a concurrent save. Locations are kept: stored
+   * IDs stay resolvable after the searches that found them expire.
+   * Returns the number of searches deleted.
+   */
+  purgeExpiredSearches(now: Date, limit = PURGE_BATCH_SIZE): Promise<number> {
+    return this.storage(
+      'purge expired location searches',
+      () =>
+        this.prisma.$executeRaw`
+        DELETE FROM location_searches
+        WHERE (query, country_code) IN (
+          SELECT query, country_code FROM location_searches
+          WHERE expires_at <= ${now}
+          ORDER BY expires_at
+          LIMIT ${limit}
+          FOR UPDATE SKIP LOCKED
+        )`,
+    );
+  }
+
+  /**
    * Runs a database operation and reports an unreachable or failing database as
    * StorageUnavailableError. Anything else, such as a constraint violation from a
    * schema mismatch or a programming error, is rethrown unchanged.
@@ -127,6 +150,9 @@ function isStorageFailure(error: unknown): boolean {
     error instanceof Prisma.PrismaClientRustPanicError
   );
 }
+
+/** Most expired searches one purge deletes, so each purge stays small. */
+export const PURGE_BATCH_SIZE = 100;
 
 /** '' stands for "no country filter" in the cache key (see prisma/schema.prisma). */
 function countryKey(countryCode: string | null): string {

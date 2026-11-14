@@ -20,6 +20,7 @@ async function repositoryFailingWith(error: unknown): Promise<LocationsRepositor
     location: { findUnique: fail },
     locationSearch: { findUnique: fail },
     $transaction: fail,
+    $executeRaw: fail,
   };
   const moduleRef = await Test.createTestingModule({
     providers: [LocationsRepository, { provide: PrismaService, useValue: prisma }],
@@ -31,6 +32,7 @@ const OPERATIONS: [string, (repository: LocationsRepository) => Promise<unknown>
   ['findLocation', (repository) => repository.findLocation('1')],
   ['findFreshSearch', (repository) => repository.findFreshSearch('berlin', null, new Date())],
   ['saveSearch', (repository) => repository.saveSearch('berlin', null, [], new Date(), new Date())],
+  ['purgeExpiredSearches', (repository) => repository.purgeExpiredSearches(new Date())],
 ];
 
 describe('LocationsRepository', () => {

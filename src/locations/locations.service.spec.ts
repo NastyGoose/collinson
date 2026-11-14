@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { FixedClock } from '../../test/support/fixed-clock';
 import { Clock } from '../clock/clock';
@@ -23,11 +24,15 @@ function location(id: string): Location {
 
 async function createService() {
   const repository: jest.Mocked<
-    Pick<LocationsRepository, 'findLocation' | 'findFreshSearch' | 'saveSearch'>
+    Pick<
+      LocationsRepository,
+      'findLocation' | 'findFreshSearch' | 'saveSearch' | 'purgeExpiredSearches'
+    >
   > = {
     findLocation: jest.fn().mockResolvedValue(null),
     findFreshSearch: jest.fn().mockResolvedValue(null),
     saveSearch: jest.fn().mockResolvedValue(undefined),
+    purgeExpiredSearches: jest.fn().mockResolvedValue(0),
   };
   const geocoding: jest.Mocked<Pick<OpenMeteoGeocodingClient, 'search'>> = {
     search: jest.fn(),
@@ -92,6 +97,27 @@ describe('LocationsService', () => {
     );
   });
 
+  it('purges expired searches after saving a fresh fetch', async () => {
+    const { service, repository, geocoding } = await createService();
+    geocoding.search.mockResolvedValue([location('1')]);
+
+    await service.search('Springfield');
+
+    expect(repository.purgeExpiredSearches).toHaveBeenCalledWith(NOW);
+    expect(repository.saveSearch.mock.invocationCallOrder[0]).toBeLessThan(
+      repository.purgeExpiredSearches.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('still answers when the purge fails', async () => {
+    jest.spyOn(Logger.prototype, 'warn').mockImplementationOnce(() => undefined);
+    const { service, repository, geocoding } = await createService();
+    geocoding.search.mockResolvedValue([location('1')]);
+    repository.purgeExpiredSearches.mockRejectedValue(new StorageUnavailableError('down'));
+
+    await expect(service.search('Springfield')).resolves.toEqual([location('1')]);
+  });
+
   it('serves a fresh cache entry without calling the provider', async () => {
     const { service, repository, geocoding } = await createService();
     repository.findFreshSearch.mockResolvedValue({
@@ -102,6 +128,7 @@ describe('LocationsService', () => {
 
     await expect(service.search('Springfield')).resolves.toEqual([location('7')]);
     expect(geocoding.search).not.toHaveBeenCalled();
+    expect(repository.purgeExpiredSearches).not.toHaveBeenCalled();
   });
 
   it('writes nothing when the provider fails', async () => {
@@ -112,6 +139,7 @@ describe('LocationsService', () => {
       code: 'GEOCODING_UNAVAILABLE',
     });
     expect(repository.saveSearch).not.toHaveBeenCalled();
+    expect(repository.purgeExpiredSearches).not.toHaveBeenCalled();
   });
 
   it('does not call the provider when the cache cannot be read', async () => {
