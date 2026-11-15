@@ -2,10 +2,10 @@ import {
   atmosphericForecast,
   marineForecast,
   withoutInstant,
-} from '../../test/fixtures/scoring-weather';
-import { ATMOSPHERIC_SPEC } from '../forecasts/open-meteo-atmospheric.client';
-import { MARINE_SPEC } from '../forecasts/open-meteo-marine.client';
-import { forecastWindow } from '../forecasts/forecast-window';
+} from '../../fixtures/scoring-weather';
+import { ATMOSPHERIC_SPEC } from '../../../src/forecasts/open-meteo-atmospheric.client';
+import { MARINE_SPEC } from '../../../src/forecasts/open-meteo-marine.client';
+import { forecastWindow } from '../../../src/forecasts/forecast-window';
 import {
   INSTANT_HOURS,
   max,
@@ -16,7 +16,7 @@ import {
   sampleSource,
   scoringHours,
   sum,
-} from './day-samples';
+} from '../../../src/activities/day-samples';
 
 const LISBON = forecastWindow(new Date('2026-11-14T12:00:00Z'), 'Europe/Lisbon');
 const DAY = LISBON.dates[0];

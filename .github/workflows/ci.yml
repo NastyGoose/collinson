@@ -57,8 +57,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Module boundaries from ADR 0006; fails only on violations that are not
-      # in .dependency-cruiser-known-violations.json.
+      # Module boundaries from ADR 0006; fails on any violation.
       - name: Structure
         run: npm run lint:structure
 

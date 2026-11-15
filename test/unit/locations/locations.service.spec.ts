@@ -1,12 +1,19 @@
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { FixedClock } from '../../test/support/fixed-clock';
-import { Clock } from '../clock/clock';
-import type { Location } from './location';
-import { GeocodingUnavailableError, StorageUnavailableError } from './location.errors';
-import { LocationsRepository } from './locations.repository';
-import { LocationsService, SEARCH_EMPTY_TTL_MS, SEARCH_MATCH_TTL_MS } from './locations.service';
-import { OpenMeteoGeocodingClient } from './open-meteo-geocoding.client';
+import { FixedClock } from '../../support/fixed-clock';
+import { Clock } from '../../../src/clock/clock';
+import type { Location } from '../../../src/locations/location';
+import {
+  GeocodingUnavailableError,
+  StorageUnavailableError,
+} from '../../../src/locations/location.errors';
+import { LocationsRepository } from '../../../src/locations/locations.repository';
+import {
+  LocationsService,
+  SEARCH_EMPTY_TTL_MS,
+  SEARCH_MATCH_TTL_MS,
+} from '../../../src/locations/locations.service';
+import { OpenMeteoGeocodingClient } from '../../../src/locations/open-meteo-geocoding.client';
 
 const NOW = new Date('2026-11-14T12:00:00.000Z');
 

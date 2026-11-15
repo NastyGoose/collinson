@@ -14,7 +14,7 @@
     "start:prod": "node dist/main",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint --type-aware src/ test/ scripts/",
-    "lint:structure": "depcruise src test --config .dependency-cruiser.cjs --ignore-known",
+    "lint:structure": "depcruise src test --config .dependency-cruiser.cjs",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" prisma.config.ts \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" prisma.config.ts \"scripts/**/*.mjs\"",
     "db:up": "docker compose up -d --wait postgres",

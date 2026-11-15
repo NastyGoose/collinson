@@ -9,16 +9,16 @@ import {
   SPRINGFIELD_MA,
   SPRINGFIELD_MO,
   type RawResult,
-} from '../../test/fixtures/open-meteo-geocoding';
-import { rejected, thrown } from '../../test/support/errors';
-import { fixtureFetch, jsonResponse, timeoutError } from '../../test/support/fixture-fetch';
-import { GeocodingUnavailableError } from './location.errors';
+} from '../../fixtures/open-meteo-geocoding';
+import { rejected, thrown } from '../../support/errors';
+import { fixtureFetch, jsonResponse, timeoutError } from '../../support/fixture-fetch';
+import { GeocodingUnavailableError } from '../../../src/locations/location.errors';
 import {
   GEOCODING_REQUEST_COUNT,
   GEOCODING_TIMEOUT_MS,
   OpenMeteoGeocodingClient,
   parseGeocodingResponse,
-} from './open-meteo-geocoding.client';
+} from '../../../src/locations/open-meteo-geocoding.client';
 
 function geocodingError(promise: Promise<unknown>): Promise<GeocodingUnavailableError> {
   return rejected(promise, GeocodingUnavailableError);

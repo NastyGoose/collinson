@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
-import { rejected } from '../../test/support/errors';
-import { fixtureFetch, jsonResponse } from '../../test/support/fixture-fetch';
-import { forLog, requestJson, UpstreamRequestError } from './json-request';
+import { rejected } from '../../support/errors';
+import { fixtureFetch, jsonResponse } from '../../support/fixture-fetch';
+import { forLog, requestJson, UpstreamRequestError } from '../../../src/http/json-request';
 
 const URL_ = new URL('https://api.open-meteo.com/v1/forecast');
 const logger = new Logger('json-request.spec');

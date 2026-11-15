@@ -8,7 +8,7 @@ import {
   SKI_TEMPERATURE_C,
   skiingScore,
   surfingScore,
-} from './scoring-v1';
+} from '../../../src/activities/scoring-v1';
 
 describe('interpolate', () => {
   it('is linear between breakpoints and exact at them', () => {

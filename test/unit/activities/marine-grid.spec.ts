@@ -4,14 +4,14 @@ import {
   NEAR_GRID,
   ORIGIN,
   REQUESTED,
-} from '../../test/fixtures/scoring-weather';
+} from '../../fixtures/scoring-weather';
 import {
   checkMarineGrid,
   EARTH_RADIUS_KM,
   haversineKm,
   isValidCoordinates,
   isWithinGridLimit,
-} from './marine-grid';
+} from '../../../src/activities/marine-grid';
 
 describe('haversineKm', () => {
   it('measures along a meridian as the radius times the angle', () => {
