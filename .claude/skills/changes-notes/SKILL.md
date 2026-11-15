@@ -12,7 +12,8 @@ affect?** Write it in plain language, with a link to the code for every claim. H
 the companion skill `testing-notes`, and the two pages link to each other.
 
 Input: a task key, a PR number or a PR URL. With none, take the key from the current branch name
-(`PROJ-123-short-slug` gives `PROJ-123`) and use that branch's open PR. If the key has several PRs (a companion
+(`PROJ-123-short-slug` gives `PROJ-123`) and use that branch's open PR. Given only a PR, take the key from its
+head branch name or title. If neither has one, use `PR-<n>`. If the key has several PRs (a companion
 repo, a split change), use the one in this repo and link the others.
 
 Flags:
@@ -36,7 +37,7 @@ Run independent reads in parallel. Use the `gh` CLI for GitHub; it works whether
 | PR | `gh pr view <n> --json number,title,url,state,isDraft,baseRefName,headRefName,headRefOid,body,files,commits,reviewDecision` |
 | Repo | `gh repo view --json nameWithOwner`, for the code links |
 | Diff | `gh pr diff <n>`. Read all of it. List generated files (codegen output, lockfiles, baselines, baked assets) without explaining them |
-| Head code | `git fetch -q origin <headRefName>`, then `git show "<headRefOid>:<path>"` for line numbers that match the PR |
+| Head code | `git fetch -q origin "pull/<n>/head"`, which survives a deleted branch; fall back to `<headRefName>`. Then `git show "<headRefOid>:<path>"` for line numbers that match the PR |
 | CI | `gh pr checks <n>`: failing and pending checks by name |
 | Ticket | Through the tracker's tools: the description, the acceptance criteria, the out-of-scope list and the comments |
 | Task folder | `.claude-tmp/tasks/<KEY>/`: the plan (`<KEY>.md`, its `## Decisions` and `## Log`), the handoff (`<KEY>.handoff.md`: `Rollout`, `Risks`, `Decisions to confirm`, `Follow-ups`), `<KEY>.follow-ups.md`, review notes, `artifacts.md` |
@@ -94,6 +95,9 @@ Writing:
   the shape is the point.
 - **Screenshots.** A visible change gets the screenshot from `evidence/` as a `figure.shot` (a downscaled `data:`
   URI with alt text and a caption), next to the area it belongs to.
+- **Redaction.** Remove tokens, passwords and keys, credentials inside connection strings, email addresses and other
+  personal data from every snippet, table and screenshot. Config and CI files often hold them. Use `<redacted>`,
+  and crop or blur images.
 - **Inferences.** Anything you reconstructed rather than read is marked "inferred" next to it: a Before flow built
   from the removed lines, a reason taken from a commit message. Where task notes and the PR disagree (an old commit
   range, a stale count), the PR and the diff win.
@@ -103,14 +107,17 @@ Writing:
 
 ## 4. Publish
 
-- Write the page to `.claude-tmp/tasks/<KEY>/<KEY>.changes.html`, or `<KEY>.changes.ru.html` with `--ru`.
+- Write the page to `.claude-tmp/tasks/<KEY>/<KEY>.changes.html`, or `<KEY>.changes.ru.html` with `--ru`. Create
+  the folder if it is missing. Check that it is ignored (`git check-ignore -q .claude-tmp`); if it is not, add
+  `/.claude-tmp/` to `.git/info/exclude`.
 - Look in `.claude-tmp/tasks/<KEY>/artifacts.md` for `changes-<lang>: <url>`.
   - If the line exists and `--new` is not set, read that URL with `Artifact` `action: "read"`, then publish with
     `url` to update it in place. That is the normal path after new commits: the head SHA in the header and in every
     link moves with it.
   - Otherwise publish a new artifact with `icon: "review"` and a one-sentence `description`.
 - If this session offers a preview, take one look and fix what it shows. Do not loop.
-- Record the URL in `artifacts.md` as `changes-<lang>: <url> (<date>, <short sha>)`.
+- Record the URL in `artifacts.md` as `changes-<lang>: <url> (<date>, <short sha>)`. Keep one line per kind and
+  language: replace the existing line rather than adding another.
 
 ## 5. Reply
 
@@ -123,5 +130,6 @@ Writing:
   **Notes:** [Changes](<changes url>) · [Testing](<testing url>)
   ```
 
-  Leave out a page that does not exist yet. Show the exact text. Add it with `gh pr edit` only after the user says
-  yes. Posting the link anywhere else (chat, the ticket) is outward-facing as well: do it only when asked.
+  Leave out a page that does not exist yet. Show the exact text, or the replacement line if the body already has a
+  `**Notes:**` line. On the user's yes, fetch the current body (`gh pr view <n> --json body`), add or replace only
+  that line, and write it back with `gh pr edit <n> --body-file`. Never rebuild the body from memory. Posting the link anywhere else (chat, the ticket) is outward-facing as well: do it only when asked.

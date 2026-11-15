@@ -12,7 +12,8 @@ criterion gets the tests and evidence that prove it and a verdict. What changed,
 skill `changes-notes`, and the two pages link to each other.
 
 Input: a task key, a PR number or a PR URL. With none, take the key from the current branch name
-(`PROJ-123-short-slug` gives `PROJ-123`) and use that branch's open PR.
+(`PROJ-123-short-slug` gives `PROJ-123`) and use that branch's open PR. Given only a PR, take the key from its
+head branch name or title. If neither has one, use `PR-<n>`.
 
 Flags:
 
@@ -37,19 +38,23 @@ Run independent reads in parallel.
 | --- | --- |
 | PR | `gh pr view <n> --json number,title,url,state,isDraft,headRefName,headRefOid,body,files` and `gh repo view --json nameWithOwner` |
 | Criteria | The ticket's acceptance criteria, through the tracker's tools. If the project keeps acceptance scenarios elsewhere (an implementation plan, a spec), add the ones this ticket covers |
-| Tests in the diff | `gh pr diff <n>`: the test files added or changed, and each test's name and line at the head SHA (`git show "<headRefOid>:<path>"`). A PR with no tests (docs, CI config) is proven by inspection: link the files and lines that deliver each criterion |
-| CI | `gh pr checks <n>`, then `gh run list --commit <headRefOid> --json databaseId,name,conclusion,url`. Per relevant job, `gh run view <id> --log` (or `--log-failed`), trimmed to the lines that matter |
+| Head code | `git fetch -q origin "pull/<n>/head"`, which survives a deleted branch; fall back to `<headRefName>`. Then `git show "<headRefOid>:<path>"` |
+| Tests in the diff | `gh pr diff <n>`: the test files added or changed, and each test's name and line at the head SHA. A PR with no tests (docs, CI config) is proven by inspection: link the files and lines that deliver each criterion |
+| CI | `gh pr checks <n>`, then `gh run list --commit <headRefOid> --json databaseId,name,status,conclusion,url` (`status` shows a run still in progress). Per relevant job, `gh run view <id> --log` (or `--log-failed`), trimmed to the lines that matter |
 | Handoff | `.claude-tmp/tasks/<KEY>/<KEY>.handoff.md`: `Automated coverage` and `Verify by hand`. `Do by hand` lists the author's actions, not checks. With no handoff, take the manual checks from the PR body's test plan |
-| Evidence | `.claude-tmp/tasks/<KEY>/evidence/evidence.md` and the files it lists (from `verify-handoff`): screenshots, captures, probe outputs |
+| Evidence | `.claude-tmp/tasks/<KEY>/evidence/evidence.md` and the files it lists (from `verify-handoff`): screenshots, captures, probe outputs. Open each listed file: an index line alone is a claim, and a handoff item marked `FAILED` is not proven |
 | Commands | The project's test, lint and typecheck commands, from `CLAUDE.md`, the README, package scripts or the CI config |
 | Companion page | `artifacts.md`: the `changes-<lang>` URL, for the header link. Without one, leave the link out |
 
 With `--rerun`:
 
-1. Start what the tests need (for example the database), the way the README says.
-2. Run each test command once.
-3. Save each output to `.claude-tmp/tasks/<KEY>/evidence/runs/<command-slug>.txt` with the command, the head SHA,
-   the date and the exit status on top.
+1. Run at the PR head, nowhere else. Use a separate worktree (`git worktree add ../<repo>-<KEY>-testing
+   <headRefOid>`). Alternatively, check that the current checkout is exactly the head: `git rev-parse HEAD` equals
+   `headRefOid` and `git status --porcelain` is empty. If neither holds, stop and say why.
+2. Start what the tests need (for example the database), the way the README says.
+3. Run each test command once.
+4. Save each output to `.claude-tmp/tasks/<KEY>/evidence/runs/<command-slug>.txt`. Put on top the command, the SHA
+   that was actually tested, the date and the exit status.
 
 Never run live-provider or production checks unless the user asks.
 
@@ -61,8 +66,13 @@ missing under "Gaps and risks".
 For each acceptance criterion:
 
 1. Restate it in plain words. A criterion that bundles several claims ("document X, Y and Z") is split into one line
-   per claim inside its card, and each line gets its own verdict. The card's verdict is the weakest of them. With
-   the ticket out of reach, take the criteria from the PR body and say so in the lede.
+   per claim inside its card, and each line gets its own verdict. The card's verdict follows from its lines:
+   - proven if every line is proven;
+   - not proven if no line is proven or proven by hand;
+   - proven by hand only if the only gap is lines proven by hand;
+   - partial otherwise.
+
+   With the ticket out of reach, take the criteria from the PR body and say so in the lede.
 2. Find the tests that prove it:
    - the spec path, the test name, and a link to that line at the head SHA;
    - prefer tests that the diff adds or changes, then existing tests that cover the behaviour.
@@ -84,8 +94,15 @@ Rules for verdicts:
 - **Your own evidence only.** A verdict rests only on what you saw yourself. Never take the PR body, the handoff or
   a commit message's word for it.
 - **Pending or red runs.** A run that is pending or failed never yields "proven". Say so, and name the failing job.
+- **The test must have run.** A green job proves a test only if that test ran in it. Its file or name appears in
+  the log, or the job's command and runner config cover its path, and it is not skipped (`.skip`, `xit`, an ignored
+  path or a tier the job does not run). Otherwise that line is not proven.
 - **Manual checks without evidence.** A manual check with no evidence file is "not proven". Add "run
   `verify-handoff`" next to it.
+- **Stale manual evidence.** Manual evidence carries no SHA. Date it by its handoff tick, or by the file's
+  modification time. If commits after that date touch the paths the check covers
+  (`git log --since=<date> <headRefOid> -- <paths>`), the item is not proven. Say "evidence predates `<sha>`" and
+  point to `verify-handoff`.
 - **Evidence from another head.** Evidence from another commit counts only if the code and tests it exercises are
   the same there. Say why, for example "later commits change only docs" or "the merge commit has the same tree".
   - Older commit: check that the commits since then cannot affect it.
@@ -100,7 +117,9 @@ Rules for verdicts:
   - Put the command and its exit status on top, in `.log-cmd`.
   - Never paste a whole log.
 - **Redaction.** Remove tokens, passwords and keys, credentials inside connection strings, email addresses and other
-  personal data. Use `<redacted>` in their place. Check every excerpt for this before you build the page.
+  personal data. Use `<redacted>` in their place. Before you build the page, check every piece of text and every
+  image on it. That includes captured headers (`Authorization`, `Cookie`, `Set-Cookie`), screenshots (crop or blur
+  them) and commands copied from the handoff, such as a connection string with a password.
 - **API captures.** Show the request and the response, pretty-printed and trimmed, with the endpoint and the status.
 - **Screenshots.**
   - Embed them as downscaled `data:` URIs, at most about 1200 px wide.
@@ -125,7 +144,7 @@ Put the sections in this order. Drop a section that would be empty; never pad on
 
 | Section | Content |
 | --- | --- |
-| Header | Eyebrow (key · PR #n · state pill · overall verdict pill such as "6 of 7 criteria proven"), title, a one-sentence lede, and meta links: PR, ticket, the `changes-notes` page when it exists, "Evidence at `<short sha>`" |
+| Header | Eyebrow (key · PR #n · state pill · overall verdict pill such as "3 of 6 proven · 1 by hand · 2 partial", where "proven" counts only `pill-ok` cards), title, a one-sentence lede, and meta links: PR, ticket, the `changes-notes` page when it exists, "Evidence at `<short sha>`" |
 | In short | Two to four plain sentences: what was tested, where (local, CI, by hand), and the gaps. Facts as `.fact-num`: criteria proven, tests added, CI result |
 | Criteria and evidence | One `.evidence` card per criterion, as in step 2, with its `.log` excerpts and `figure.shot` screenshots |
 | Test runs | A table of each command or CI job: result, duration, where it ran, and a link to the CI run or the saved output |
@@ -142,13 +161,17 @@ Writing:
 
 ## 5. Publish
 
-- Write the page to `.claude-tmp/tasks/<KEY>/<KEY>.testing.html`, or `<KEY>.testing.ru.html` with `--ru`.
+- Write the page to `.claude-tmp/tasks/<KEY>/<KEY>.testing.html`, or `<KEY>.testing.ru.html` with `--ru`. Create
+  the folder if it is missing. Check that it is ignored (`git check-ignore -q .claude-tmp`); if it is not, add
+  `/.claude-tmp/` to `.git/info/exclude`.
 - Look in `.claude-tmp/tasks/<KEY>/artifacts.md` for `testing-<lang>: <url>`.
   - If the line exists and `--new` is not set, read that URL with `Artifact` `action: "read"`, then publish with
-    `url` to update it in place. That is the normal path after new commits.
+    `url` to update it in place. That is the normal path after new commits. Rebuild the page at the new head:
+    every link, run and verdict moves to the new SHA, and nothing carries over from the old version.
   - Otherwise publish a new artifact with `icon: "check"` and a one-sentence `description`.
 - If this session offers a preview, take one look and fix what it shows. Do not loop.
-- Record the URL in `artifacts.md` as `testing-<lang>: <url> (<date>, <short sha>)`.
+- Record the URL in `artifacts.md` as `testing-<lang>: <url> (<date>, <short sha>)`. Keep one line per kind and
+  language: replace the existing line rather than adding another.
 
 ## 6. Reply
 
@@ -161,5 +184,7 @@ Writing:
   **Notes:** [Changes](<changes url>) · [Testing](<testing url>)
   ```
 
-  Show the exact text, and add it with `gh pr edit` only after the user says yes. Posting the link anywhere else is
-  outward-facing too: do it only when asked.
+  Leave out a page that does not exist yet. If the body already has a `**Notes:**` line, show the replacement
+  line. On the user's yes, fetch the current body (`gh pr view <n> --json body`), add or replace only that line, and
+  write it back with `gh pr edit <n> --body-file`. Never rebuild the body from memory. Posting the link anywhere
+  else is outward-facing too: do it only when asked.

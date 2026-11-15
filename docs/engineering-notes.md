@@ -97,6 +97,18 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Options:** (A) two new skills, with `changes-notes` replacing the existing `pr-walkthrough`; (B) two new skills next to `pr-walkthrough`; (C) one skill that publishes both pages. **The author chose A.** B would have kept two "what changed" pages that drift apart. C would rewrite the changes page every time tests were rerun. `changes-notes` keeps `pr-walkthrough`'s gathering and claim checks. Its criteria table and verify-by-hand steps moved to `testing-notes`.
 - **AI proposal, accepted:** `testing-notes` gives each criterion one of four verdicts: proven, proven by hand only, partial, not proven. A verdict rests only on evidence the skill saw itself. A pending or red CI run is never "proven", and a manual check without an evidence file is "not proven". Log excerpts are trimmed and redacted, and screenshots are embedded in the page so it stands alone.
 - **Hook-ins:** `self-review-pr` runs the ARC-52 architect in review mode, `implement-task` asks it where new files go, and `create-pr` points to the two notes skills.
+- **Dry run, nine gaps fixed:** both skills were run on merged PRs and wrote their pages locally, unpublished. That was `changes-notes` and `testing-notes` on the ARC-50 PR, plus `testing-notes` on the ARC-44 PR with its task folder and ticket deliberately hidden. The runs gave honest verdicts: 3 of 6 criteria proven for ARC-50, and 0 of 8 for ARC-44, which predates CI. They also showed situations the skills did not cover:
+  - docs and config deliverables, now proven by inspection;
+  - bundled criteria, now split;
+  - CI runs on a later commit;
+  - a missing handoff or companion page;
+  - inferences, now labelled.
+- **Review findings, fixed:** a fresh-context review of the branch found five gaps, all fixed:
+  - `--rerun` could test a checkout other than the PR head;
+  - manual evidence older than later commits still counted;
+  - a green job counted for a test it never ran;
+  - redaction did not reach screenshots, headers or `changes-notes`;
+  - the rules for combining a bundled criterion's verdicts contradicted the "partial" verdict.
 
 ## Scope cuts
 
