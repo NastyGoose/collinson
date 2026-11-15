@@ -67,7 +67,7 @@ which source was missing.
 First call `Artifact` with `action: "quickstart"` and `intent: "other"`, once per new artifact. Then start from the
 template:
 
-- Keep its `<style>` and `<script>` verbatim.
+- Keep its `<style>` verbatim. Delete its `<script>`: it only drives `.steps`, which this page does not use.
 - Replace every placeholder.
 - Set `lang` on `.page`.
 - Delete the guide comments and every component the page does not use.
@@ -81,7 +81,7 @@ Put the sections in this order. Drop a section that would be empty; never pad on
 | Before and after | `.compare` holding two `.flow` diagrams of the behaviour, or of the module structure for a refactor. Reuse the explainer's flow as the Before when it exists. Put each diagram's content in words next to it |
 | What changed, by area | One `.area` per purpose, such as "Validation rules", "Storage", "Logging", "Tests" or "Docs". In each: why it changed in one or two sentences, then `.files` with +/− counts and each file linked to the code at the head SHA. Group by purpose, not by directory |
 | What it affects | A short table with five rows: behaviour and API contract, data and migrations, configuration and environment, operations (logs, CI, scripts, dependencies), rollback (what the previous build does with anything the new one wrote). Each row says what changes for whom, or "No change" explicitly |
-| Decisions | A table of question, what was chosen, why, and the rejected alternative, with links to the ADR or design note. Note where it differs from the explainer's recommendation |
+| Decisions | A table of question, what was chosen, why, and the rejected alternative, with links to the ADR or design note. If an explainer exists, note where the choice differs from its recommendation. If no rejected alternative is on record, write "not recorded" rather than inventing one |
 | Risks and follow-ups | From the handoff, CI state and the scope flags from step 2. Each follow-up gets its triage pill: pending, implement now, draft ticket or dropped |
 | Sources | The PR, the ticket, the explainer, ADRs and files read. The footer says which head SHA the code links come from |
 
@@ -94,6 +94,9 @@ Writing:
   the shape is the point.
 - **Screenshots.** A visible change gets the screenshot from `evidence/` as a `figure.shot` (a downscaled `data:`
   URI with alt text and a caption), next to the area it belongs to.
+- **Inferences.** Anything you reconstructed rather than read is marked "inferred" next to it: a Before flow built
+  from the removed lines, a reason taken from a commit message. Where task notes and the PR disagree (an old commit
+  range, a stale count), the PR and the diff win.
 - **Status.** Pills, never emoji.
 - **Titles.** English `<KEY> changes`; Russian `Изменения <KEY>`. Russian copy uses «ёлочки» quotes and keeps
   identifiers in Latin script.

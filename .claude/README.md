@@ -26,10 +26,12 @@ To make them available to every project, copy them into your personal skills fol
 | Review | `self-review-pr` | Reviews your own PR the way a production-owning reviewer would, then triages the findings |
 | Review | `prepare-for-review` | Works through the PR template's author checklist; answers yes or no per line |
 | Review | `reviewing-teammate-prs` | Drafts a review of someone else's PR in your voice, posted only after you approve |
-| Review | `pr-walkthrough` | Publishes a "what changed" page for reviewers and QA |
+| Review | `changes-notes` | Publishes a plain-language page of what a PR changed, why, and what it affects, with code links |
+| Review | `testing-notes` | Publishes each acceptance criterion with its proving tests and evidence (output, logs, screenshots) and a verdict |
 | Ship | `prepare-for-testing` | Closes review threads, updates the branch, re-proves it and drafts the hand-over to testing |
 
-`task-explainer/template.html` is the page template shared by `task-explainer` and `pr-walkthrough`.
+`task-explainer/template.html` is the page template shared by `task-explainer`, `changes-notes` and `testing-notes`.
+The two notes pages are made per PR for the author and the reviewers, and link to each other.
 
 ## Agents and rules
 
@@ -72,5 +74,5 @@ the links to published pages (`artifacts.md`). `implement-task` makes sure the f
 
 Some steps use tools a session may not have and are skipped without them: a design tool connector (design
 comparison), browser automation (`verify-handoff`), a chat connector (`resume-task`), and the Artifact tool
-(`task-explainer`, `pr-walkthrough`). Where a project has its own reviewer, test-review, rules or docs skills, the
+(`task-explainer`, `changes-notes`, `testing-notes`). Where a project has its own reviewer, test-review, rules or docs skills, the
 skills here call those; otherwise they fall back to the built-in `code-review` and `security-review`.
