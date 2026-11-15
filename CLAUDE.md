@@ -11,7 +11,7 @@ Read this file before implementing a Collinson ticket. The assessment is a singl
 
 ## Implementation rules
 
-- Keep the NestJS resolver focused on orchestration and GraphQL mapping. Locations owns geocoding and stable IDs. Forecasts owns provider adapters, normalization, persistence and refresh. Activities computes scores from normalized weather with no I/O. Use an injectable clock for request time and freshness.
+- Keep the NestJS resolver focused on orchestration and GraphQL mapping. The location module owns geocoding and stable IDs. The forecast module owns provider adapters, normalization, persistence and refresh. The activity folder computes scores from normalized weather with no I/O. Use an injectable clock for request time and freshness.
 - Require exactly one city or stored location ID. Trim and validate the city, apply the optional country filter only to city searches, return ambiguity explicitly, and resolve known IDs without geocoding. Keep genuine empty searches distinct from provider failures.
 - Freeze the request instant before location resolution. Derive tomorrow and the next six dates in the selected IANA timezone. Convert provider Unix timestamps by that timezone for each instant. Check actual coverage of the required local hours and preserve measurement nulls separately.
 - Keep atmospheric and marine data independent. Persist normalized weather in PostgreSQL on the versioned snapshot key. Check age and coverage together. Validate every replacement before an atomic upsert. Keep provider I/O outside database transactions. After a shared refresh, check coverage for each caller's own date window.

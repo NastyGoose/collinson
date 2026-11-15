@@ -1,5 +1,5 @@
 /**
- * Errors the Locations module raises. `code` is the GraphQL `extensions.code` the
+ * Errors the location module raises. `code` is the GraphQL `extensions.code` the
  * Technical Design assigns to each failure, so the GraphQL layer maps them 1:1.
  */
 export type LocationErrorCode = 'BAD_USER_INPUT' | 'GEOCODING_UNAVAILABLE' | 'STORAGE_UNAVAILABLE';

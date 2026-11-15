@@ -11,8 +11,8 @@ import type { ForecastResult } from './activity-forecast.types';
 import { DomainErrorFilter } from './activity-forecast.filter';
 
 /**
- * The `locations` and `activityForecast` queries. Orchestrates Locations,
- * Forecasts and Activities and maps their results to the published SDL; it holds
+ * The `locations` and `activityForecast` queries. Orchestrates LocationService,
+ * ForecastService and activity scoring and maps their results to the published SDL; it holds
  * no provider, storage or scoring logic of its own. DomainErrorFilter turns
  * location and storage failures into the documented GraphQL error codes.
  */

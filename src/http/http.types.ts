@@ -7,10 +7,6 @@ import type { Logger } from '@nestjs/common';
  */
 export type HttpFetch = (input: URL, init?: RequestInit) => Promise<Response>;
 
-/** Why an upstream JSON request failed, before an adapter maps it to its own error. */
-export type UpstreamFailureKind =
-  'TIMEOUT' | 'NETWORK' | 'RATE_LIMITED' | 'HTTP_ERROR' | 'INVALID_JSON' | 'TOO_LARGE';
-
 export interface JsonRequestOptions {
   /** Names the provider in messages and logs, e.g. "Geocoding" or "Marine forecast". */
   label: string;

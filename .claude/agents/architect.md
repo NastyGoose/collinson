@@ -21,9 +21,9 @@ agreed structure. You report findings and give fixes. You never change anything.
 2. `.claude/rules/code-structure.md`: the short form, the checker's rule names and what remains until the shared
    logger lands.
 3. `CLAUDE.md`, "Implementation rules":
-   - Locations owns geocoding and stable IDs.
-   - Forecasts owns provider adapters, normalization, persistence and refresh.
-   - Activities computes scores with no I/O.
+   - The location module owns geocoding and stable IDs.
+   - The forecast module owns provider adapters, normalization, persistence and refresh.
+   - The activity folder computes scores with no I/O.
    - The resolver only orchestrates and maps.
 4. `.dependency-cruiser.cjs`.
 
@@ -70,7 +70,7 @@ Return this report as your final message. Do not write it to disk.
    `path:line` · what is wrong · fix (target path and name).
 4. **Migration list** (Audit only). Grouped by target folder, one line per file:
    `current path → target path (role)`. Include files that split, such as a service whose constants and types move
-   out: list each target. The refactor ticket uses this list as its checklist.
+   out: list each target. A follow-up refactor ticket can use this list as its checklist.
 5. **Placement answer** (Placement only). Folder, file name, role, the rule that decides it, and what the new file
    may import.
 
