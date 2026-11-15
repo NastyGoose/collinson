@@ -1,4 +1,5 @@
-import type { Env } from './config.types';
+import { DEFAULT_LOG_LEVEL, LOG_LEVELS } from './config.constants';
+import type { Env, LogLevel } from './config.types';
 
 const DEFAULT_PORT = 3000;
 
@@ -24,9 +25,21 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     }
   }
 
+  let logLevel: LogLevel = DEFAULT_LOG_LEVEL;
+  if (raw.LOG_LEVEL !== undefined && raw.LOG_LEVEL !== '') {
+    const level = LOG_LEVELS.find((candidate) => candidate === raw.LOG_LEVEL);
+    if (level === undefined) {
+      problems.push(
+        `LOG_LEVEL must be one of ${LOG_LEVELS.join(', ')}, got ${JSON.stringify(raw.LOG_LEVEL)}.`,
+      );
+    } else {
+      logLevel = level;
+    }
+  }
+
   if (problems.length > 0) {
     throw new Error(`Invalid configuration:\n- ${problems.join('\n- ')}`);
   }
 
-  return { DATABASE_URL: databaseUrl, PORT: port };
+  return { DATABASE_URL: databaseUrl, PORT: port, LOG_LEVEL: logLevel };
 }

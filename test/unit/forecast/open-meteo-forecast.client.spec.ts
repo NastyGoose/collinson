@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import {
   atmosphericBody,
   FIRST_HOUR,
@@ -8,6 +7,7 @@ import {
 } from '../../fixtures/open-meteo-weather';
 import { rejected } from '../../support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../support/fixture-fetch';
+import { jsonRequest, silentLogger } from '../../support/logger';
 import { MAX_RESPONSE_BYTES } from '../../../src/http/http.constants';
 import { SourceRefreshError } from '../../../src/forecast/forecast.errors';
 import {
@@ -35,21 +35,18 @@ function sequence(...answers: Array<Response | Error>) {
   });
 }
 
-let warn: jest.SpyInstance;
-
-beforeAll(() => {
-  warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-});
-
-afterAll(() => {
-  jest.restoreAllMocks();
-});
+/** JsonRequestService logs request failures; this spy reads what it logged. */
+const requestLogger = silentLogger();
+const warn = jest.spyOn(requestLogger, 'warn');
 
 describe('Open-Meteo forecast requests', () => {
   it('asks the forecast API for eight days of metric hourly weather in Unix time', async () => {
     const fetch = fixtureFetch(() => jsonResponse(atmosphericBody({ firstHour: FIRST_HOUR })));
 
-    await new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE);
+    await new OpenMeteoAtmosphericClient(
+      jsonRequest(fetch, requestLogger),
+      silentLogger(),
+    ).fetchForecast(PENICHE);
 
     const url = fetch.mock.calls[0][0];
     expect(url.origin + url.pathname).toBe('https://api.open-meteo.com/v1/forecast');
@@ -69,7 +66,10 @@ describe('Open-Meteo forecast requests', () => {
   it('asks the marine API for the sea cell with wave height and period', async () => {
     const fetch = fixtureFetch(() => jsonResponse(marineBody({ firstHour: FIRST_HOUR })));
 
-    await new OpenMeteoMarineClient(fetch).fetchForecast(WARSAW);
+    await new OpenMeteoMarineClient(
+      jsonRequest(fetch, requestLogger),
+      silentLogger(),
+    ).fetchForecast(WARSAW);
 
     const url = fetch.mock.calls[0][0];
     expect(url.origin + url.pathname).toBe('https://marine-api.open-meteo.com/v1/marine');
@@ -89,7 +89,10 @@ describe('Open-Meteo forecast requests', () => {
     const timeout = jest.spyOn(AbortSignal, 'timeout');
     const fetch = fixtureFetch(() => jsonResponse(marineBody({ firstHour: FIRST_HOUR })));
 
-    await new OpenMeteoMarineClient(fetch).fetchForecast(PENICHE);
+    await new OpenMeteoMarineClient(
+      jsonRequest(fetch, requestLogger),
+      silentLogger(),
+    ).fetchForecast(PENICHE);
 
     expect(OPEN_METEO_TIMEOUT_MS).toBe(5000);
     expect(timeout).toHaveBeenCalledWith(OPEN_METEO_TIMEOUT_MS);
@@ -113,7 +116,11 @@ describe('Open-Meteo forecast requests', () => {
         }),
     );
 
-    const pending = refreshError(new OpenMeteoMarineClient(fetch).fetchForecast(PENICHE));
+    const pending = refreshError(
+      new OpenMeteoMarineClient(jsonRequest(fetch, requestLogger), silentLogger()).fetchForecast(
+        PENICHE,
+      ),
+    );
     // Fire each attempt's timer as AbortSignal.timeout would after 5000 ms.
     for (let attempt = 0; attempt < 2; attempt += 1) {
       while (controllers.length <= attempt) {
@@ -132,7 +139,10 @@ describe('Open-Meteo forecast requests', () => {
   it('normalizes the answer with requested and returned coordinates', async () => {
     const fetch = fixtureFetch(() => jsonResponse(atmosphericBody({ firstHour: FIRST_HOUR })));
 
-    const forecast = await new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE);
+    const forecast = await new OpenMeteoAtmosphericClient(
+      jsonRequest(fetch, requestLogger),
+      silentLogger(),
+    ).fetchForecast(PENICHE);
 
     expect(forecast).toMatchObject({
       source: 'ATMOSPHERIC',
@@ -160,7 +170,10 @@ describe('Open-Meteo forecast retries', () => {
   it('retries once after a timeout and then succeeds', async () => {
     const fetch = sequence(timeoutError(), body());
 
-    await new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE);
+    await new OpenMeteoAtmosphericClient(
+      jsonRequest(fetch, requestLogger),
+      silentLogger(),
+    ).fetchForecast(PENICHE);
 
     expect(fetch).toHaveBeenCalledTimes(2);
   });
@@ -168,7 +181,12 @@ describe('Open-Meteo forecast retries', () => {
   it('retries once after a network error and reports the second failure', async () => {
     const fetch = sequence(new TypeError('fetch failed'), timeoutError());
 
-    const error = await refreshError(new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE));
+    const error = await refreshError(
+      new OpenMeteoAtmosphericClient(
+        jsonRequest(fetch, requestLogger),
+        silentLogger(),
+      ).fetchForecast(PENICHE),
+    );
 
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(error.code).toBe('TIMEOUT');
@@ -178,7 +196,11 @@ describe('Open-Meteo forecast retries', () => {
   it('retries a 5xx once and gives up after the second', async () => {
     const fetch = sequence(jsonResponse({}, 502), jsonResponse({}, 503), body());
 
-    const error = await refreshError(new OpenMeteoMarineClient(fetch).fetchForecast(PENICHE));
+    const error = await refreshError(
+      new OpenMeteoMarineClient(jsonRequest(fetch, requestLogger), silentLogger()).fetchForecast(
+        PENICHE,
+      ),
+    );
 
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(error.code).toBe('UPSTREAM_FAILURE');
@@ -188,7 +210,12 @@ describe('Open-Meteo forecast retries', () => {
   it('does not retry a rate limit', async () => {
     const fetch = sequence(jsonResponse({}, 429), body());
 
-    const error = await refreshError(new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE));
+    const error = await refreshError(
+      new OpenMeteoAtmosphericClient(
+        jsonRequest(fetch, requestLogger),
+        silentLogger(),
+      ).fetchForecast(PENICHE),
+    );
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(error.code).toBe('RATE_LIMITED');
@@ -197,7 +224,11 @@ describe('Open-Meteo forecast retries', () => {
   it('does not retry a 4xx, and keeps the provider reason out of the message', async () => {
     const fetch = sequence(jsonResponse({ error: true, reason: 'Cannot initialize bogus' }, 400));
 
-    const error = await refreshError(new OpenMeteoMarineClient(fetch).fetchForecast(PENICHE));
+    const error = await refreshError(
+      new OpenMeteoMarineClient(jsonRequest(fetch, requestLogger), silentLogger()).fetchForecast(
+        PENICHE,
+      ),
+    );
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(error.code).toBe('UPSTREAM_FAILURE');
@@ -210,7 +241,12 @@ describe('Open-Meteo forecast retries', () => {
       new Response(`line one\nFORGED LOG LINE\u001b[31m${'x'.repeat(500)}`, { status: 404 }),
     );
 
-    await refreshError(new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE));
+    await refreshError(
+      new OpenMeteoAtmosphericClient(
+        jsonRequest(fetch, requestLogger),
+        silentLogger(),
+      ).fetchForecast(PENICHE),
+    );
 
     const logged = String(warn.mock.calls.at(-1)?.[0]);
     expect(logged).toContain('line one FORGED LOG LINE');
@@ -221,7 +257,11 @@ describe('Open-Meteo forecast retries', () => {
   it('rejects an oversized answer without retrying', async () => {
     const fetch = sequence(new Response(' '.repeat(MAX_RESPONSE_BYTES + 1), { status: 200 }));
 
-    const error = await refreshError(new OpenMeteoMarineClient(fetch).fetchForecast(PENICHE));
+    const error = await refreshError(
+      new OpenMeteoMarineClient(jsonRequest(fetch, requestLogger), silentLogger()).fetchForecast(
+        PENICHE,
+      ),
+    );
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(error.code).toBe('INVALID_PAYLOAD');
@@ -233,7 +273,12 @@ describe('Open-Meteo forecast retries', () => {
   it('does not retry an invalid payload', async () => {
     const fetch = sequence(new Response('<html>', { status: 200 }), body());
 
-    const error = await refreshError(new OpenMeteoAtmosphericClient(fetch).fetchForecast(PENICHE));
+    const error = await refreshError(
+      new OpenMeteoAtmosphericClient(
+        jsonRequest(fetch, requestLogger),
+        silentLogger(),
+      ).fetchForecast(PENICHE),
+    );
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(error.code).toBe('INVALID_PAYLOAD');

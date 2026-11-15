@@ -1,14 +1,11 @@
-import { Logger } from '@nestjs/common';
 import { rejected } from '../../support/errors';
 import { fixtureFetch, jsonResponse } from '../../support/fixture-fetch';
-import { forLog, requestJson } from '../../../src/http/json-request';
+import { jsonRequest } from '../../support/logger';
 import { UpstreamRequestError } from '../../../src/http/http.errors';
 
 const URL_ = new URL('https://api.open-meteo.com/v1/forecast');
-const logger = new Logger('json-request.spec');
-
 function request(fetch: ReturnType<typeof fixtureFetch>, maxBytes?: number) {
-  return requestJson(fetch, URL_, { label: 'Provider', timeoutMs: 5000, maxBytes, logger });
+  return jsonRequest(fetch).get(URL_, { label: 'Provider', timeoutMs: 5000, maxBytes });
 }
 
 /** A body that arrives in chunks without a declared length, as a chunked transfer would. */
@@ -25,15 +22,7 @@ function streamed(...chunks: string[]): Response {
   return new Response(body, { status: 200 });
 }
 
-beforeAll(() => {
-  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-});
-
-afterAll(() => {
-  jest.restoreAllMocks();
-});
-
-describe('requestJson', () => {
+describe('JsonRequestService.get', () => {
   it('parses a body within the limit, multi-byte characters included', async () => {
     const fetch = fixtureFetch(() => streamed('{"unit":"', '°C"}'));
 
@@ -106,9 +95,11 @@ describe('requestJson', () => {
   });
 });
 
-describe('forLog', () => {
+describe('JsonRequestService.forLog', () => {
   it('strips control and format characters and cuts the text short', () => {
-    const logged = forLog(`a\nb\u001b[31m\u200bc${'x'.repeat(300)}`);
+    const logged = jsonRequest(fixtureFetch(() => jsonResponse({}))).forLog(
+      `a\nb\u001b[31m\u200bc${'x'.repeat(300)}`,
+    );
 
     expect(logged.startsWith('a b [31m c')).toBe(true);
     expect(logged).toHaveLength(200);

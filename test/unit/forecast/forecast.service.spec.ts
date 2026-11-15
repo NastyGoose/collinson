@@ -1,9 +1,9 @@
-import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { atmosphericBody, marineBody, PENICHE } from '../../fixtures/open-meteo-weather';
 import { deferred } from '../../support/deferred';
 import { rejected } from '../../support/errors';
 import { FixedClock } from '../../support/fixed-clock';
+import { loggerProvider } from '../../support/logger';
 import { Clock } from '../../../src/clock/clock.service';
 import {
   ForecastStorageUnavailableError,
@@ -77,20 +77,13 @@ async function createService() {
       { provide: OpenMeteoAtmosphericClient, useValue: atmosphericClient },
       { provide: OpenMeteoMarineClient, useValue: marineClient },
       { provide: Clock, useValue: clock },
+      loggerProvider(ForecastService.name),
     ],
   }).compile();
   const service = moduleRef.get(ForecastService);
   const window = () => forecastWindow(clock.now(), PENICHE.timezone);
   return { service, clock, rows, repository, atmosphericClient, marineClient, window };
 }
-
-beforeAll(() => {
-  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-});
-
-afterAll(() => {
-  jest.restoreAllMocks();
-});
 
 describe('ForecastService reuse', () => {
   it('fetches, stores and returns both sources on a cold request', async () => {

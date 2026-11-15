@@ -153,8 +153,6 @@ describe('activity forecast GraphQL contract (e2e)', () => {
   });
 
   beforeEach(async () => {
-    // Refresh failures log a warning by design; keep the test output readable.
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     upstream = new FakeOpenMeteo();
     clock.set(NOON);
     await prisma.$executeRaw`TRUNCATE forecast_snapshots, location_search_results, location_searches, locations`;

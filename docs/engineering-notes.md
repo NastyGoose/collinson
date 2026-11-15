@@ -133,6 +133,24 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - Specs that tested both a client and its parser, or both the filter and the error formatter, were split along their existing `describe` blocks.
 - **Check:** after the rename, a probe file for each rule (activity importing a forecast client, `@nestjs/common` or `node:fs`; calendar importing another folder; location importing forecast internals; infrastructure importing a domain; a spec under `src/`) made `lint:structure` fail with the expected rule names. Without that probe, rule regexes left on the old folder names would have passed silently. Test counts are unchanged: 320 unit, 43 integration and 35 E2E.
 
+### 2026-11-15 — Shared logger (ARC-57)
+
+- **Reviews of ARC-56 first:** before this part started, two sub-agents reviewed the layout PR.
+  - The architect found 8 low findings, all fixed in that PR: wording, one misplaced type, the composition root, and a dead rule exemption.
+  - A behaviour pass compared every top-level declaration and all 286 test cases with `main` and found no behaviour change.
+- **Design:** `LoggerModule.forRoot()` wraps `nestjs-pino`. Every class that logs takes `@InjectPinoLogger(<Class>.name)`. `json-request` becomes `JsonRequestService`, which owns the retry and failure lines. The Open-Meteo clients still log their own parse failures.
+- **Bug found on the way:** the first version configured nestjs-pino when the module file was imported. nestjs-pino creates a provider only for the `@InjectPinoLogger` contexts declared at that moment, so the app worked only because of import order. A spec that imported the logger module before `PrismaService` could not resolve its logger. The fix is the `forRoot()` call, which runs when a module graph is built.
+- **Choices:**
+  - Request access lines (`autoLogging`) are off. The ADR asks for structured logs of what the service does, not one line per GraphQL POST.
+  - `forLog` became a public `JsonRequestService` method. A `.logic` file in `http` would be a forbidden cross-folder import, and a function exported from a service file would mix roles.
+  - Tests are silenced by a Jest setup file that sets `LOG_LEVEL=silent` unless the run sets it. Production code has no test detection. Unit specs build a real silent `PinoLogger` and spy on it, so the assertion on sanitized provider text needs no cast.
+  - An invalid `LOG_LEVEL` fails startup like any other configuration key.
+- **Check:**
+  - The built app logs JSON lines at `info` (every line of the startup log is JSON), and `LOG_LEVEL=warn` drops them.
+  - `LOG_LEVEL=verbose` exits 1 and names the accepted values.
+  - A test run with `LOG_LEVEL=warn` shows the retry and failure warnings under their class contexts.
+  - A probe confirmed that `nestjs-pino` and `pino` imports from activity and calendar now fail `lint:structure`.
+
 ## Scope cuts
 
 - **Product:** no frontend, accounts, booking, resort, venue or beach lookup, personalized proficiency, historical analytics, alerts or hosted deployment. All were cut in the specifications.

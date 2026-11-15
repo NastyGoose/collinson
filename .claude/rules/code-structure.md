@@ -56,10 +56,8 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 - `no-test-imports-in-src`: production code never imports from `test/`.
 - `no-spec-in-src` and `no-spec-in-src-orphan`: no spec files under `src/`.
 
-## Until the logger lands
+## Working with the rules
 
-The layout follows these rules ([ARC-56](https://linear.app/archiview/issue/ARC-56/dev-apply-the-adr-0006-module-layout-and-remove-the-structure-baseline)). The shared logger is still to come ([ARC-57](https://linear.app/archiview/issue/ARC-57/dev-use-the-shared-nestjs-pino-logger-by-injection)): classes still construct `new Logger`, and `src/http/json-request.ts` still takes a logger parameter and has no role suffix. Until then:
-
-- add no new deviation;
-- make sure `npm run lint:structure` passes (it has no list of known violations);
-- when it is unclear where new code belongs, ask the `architect` agent in placement mode.
+- `npm run lint:structure` must pass; it has no list of known violations.
+- When it is unclear where new code belongs, ask the `architect` agent in placement mode.
+- In tests, build loggers with `test/support/logger.ts` (`silentLogger`, `loggerProvider`, `jsonRequest`), or import `LoggerModule.forRoot()` in a module that also has the global ConfigModule.

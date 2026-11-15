@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { Clock } from '../clock/clock.service';
 import { SEARCH_EMPTY_TTL_MS, SEARCH_MATCH_TTL_MS } from './location.constants';
 import type {
@@ -23,12 +24,11 @@ const CANONICAL_LOCATION_ID = /^[1-9][0-9]{0,15}$/;
  */
 @Injectable()
 export class LocationService {
-  private readonly logger = new Logger(LocationService.name);
-
   constructor(
     private readonly repository: LocationRepository,
     private readonly geocoding: OpenMeteoGeocodingClient,
     private readonly clock: Clock,
+    @InjectPinoLogger(LocationService.name) private readonly logger: PinoLogger,
   ) {}
 
   /**

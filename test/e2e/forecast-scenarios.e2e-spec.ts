@@ -1,4 +1,4 @@
-import { INestApplication, Logger } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types';
 import { ForecastRepository } from '../../src/forecast/forecast.repository';
 import type { HttpFetch } from '../../src/http/http.types';
@@ -190,8 +190,6 @@ describe('activity forecast scenarios (e2e)', () => {
   });
 
   beforeEach(async () => {
-    // Refresh failures log a warning by design; keep the test output readable.
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     upstream = new FakeOpenMeteo();
     clock.set(NOON);
     await prisma.$executeRaw`TRUNCATE forecast_snapshots, location_search_results, location_searches, locations`;

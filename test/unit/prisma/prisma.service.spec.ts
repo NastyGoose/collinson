@@ -1,6 +1,7 @@
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { validateEnv } from '../../../src/config/config.logic';
+import { LoggerModule } from '../../../src/logger/logger.module';
 import { PrismaModule } from '../../../src/prisma/prisma.module';
 import { PrismaService } from '../../../src/prisma/prisma.service';
 
@@ -24,6 +25,7 @@ describe('PrismaService', () => {
     return Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true, validate: validateEnv }),
+        LoggerModule.forRoot(),
         PrismaModule,
       ],
     }).compile();

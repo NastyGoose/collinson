@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { Clock } from '../../src/clock/clock.service';
@@ -13,6 +12,7 @@ import { LocationModule } from '../../src/location/location.module';
 import { LocationRepository } from '../../src/location/location.repository';
 import { LocationService } from '../../src/location/location.service';
 import { SEARCH_EMPTY_TTL_MS, SEARCH_MATCH_TTL_MS } from '../../src/location/location.constants';
+import { LoggerModule } from '../../src/logger/logger.module';
 import { PrismaModule } from '../../src/prisma/prisma.module';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import {
@@ -76,6 +76,7 @@ describe('LocationService with PostgreSQL', () => {
     const testingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+        LoggerModule.forRoot(),
         PrismaModule,
         ClockModule,
         LocationModule,
@@ -107,8 +108,6 @@ describe('LocationService with PostgreSQL', () => {
   }
 
   beforeAll(async () => {
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     moduleRef = await createModule();
     service = moduleRef.get(LocationService);
     prisma = moduleRef.get(PrismaService);

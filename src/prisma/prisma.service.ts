@@ -1,4 +1,5 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
@@ -11,9 +12,10 @@ import type { Env } from '../config/config.types';
  */
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(PrismaService.name);
-
-  constructor(config: ConfigService<Env, true>) {
+  constructor(
+    config: ConfigService<Env, true>,
+    @InjectPinoLogger(PrismaService.name) private readonly logger: PinoLogger,
+  ) {
     super({
       adapter: new PrismaPg({ connectionString: config.get('DATABASE_URL', { infer: true }) }),
     });
@@ -25,7 +27,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
-    this.logger.log('Prisma Client disconnected');
+    this.logger.info('Prisma Client disconnected');
   }
 
   /** True when PostgreSQL answers a trivial query. Never throws. */

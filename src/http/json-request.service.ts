@@ -1,32 +1,59 @@
-import { MAX_RESPONSE_BYTES } from './http.constants';
+import { Inject, Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { HTTP_FETCH, MAX_RESPONSE_BYTES } from './http.constants';
 import { UpstreamRequestError } from './http.errors';
 import type { HttpFetch, JsonRequestOptions } from './http.types';
 
 /**
- * GETs a JSON body with a per-attempt timeout and at most one retry, only after a
- * timeout, a network error or HTTP 5xx. A rate limit, another HTTP error, an
- * invalid body or one over the size limit fails at once. The final failure is logged with provider text
- * sanitized for the log.
+ * Bounded JSON requests to upstream providers, through the HTTP_FETCH provider
+ * that tests replace with fixtures. Logs retries and final failures itself, with
+ * provider text sanitized for the log.
  */
-export async function requestJson(
-  fetch: HttpFetch,
-  url: URL,
-  options: JsonRequestOptions,
-): Promise<unknown> {
-  try {
-    return await requestOnce(fetch, url, options);
-  } catch (error) {
-    if (!(error instanceof UpstreamRequestError) || !error.transient) {
-      logFailure(error, options);
-      throw error;
-    }
-    options.logger.warn(`${options.label} attempt failed (${error.kind}); retrying once`);
+@Injectable()
+export class JsonRequestService {
+  constructor(
+    @Inject(HTTP_FETCH) private readonly fetch: HttpFetch,
+    @InjectPinoLogger(JsonRequestService.name) private readonly logger: PinoLogger,
+  ) {}
+
+  /**
+   * GETs a JSON body with a per-attempt timeout and at most one retry, only after a
+   * timeout, a network error or HTTP 5xx. A rate limit, another HTTP error, an
+   * invalid body or one over the size limit fails at once.
+   */
+  async get(url: URL, options: JsonRequestOptions): Promise<unknown> {
     try {
-      return await requestOnce(fetch, url, options);
-    } catch (retryError) {
-      logFailure(retryError, options);
-      throw retryError;
+      return await requestOnce(this.fetch, url, options);
+    } catch (error) {
+      if (!(error instanceof UpstreamRequestError) || !error.transient) {
+        this.logFailure(error, options.label);
+        throw error;
+      }
+      this.logger.warn(`${options.label} attempt failed (${error.kind}); retrying once`);
+      try {
+        return await requestOnce(this.fetch, url, options);
+      } catch (retryError) {
+        this.logFailure(retryError, options.label);
+        throw retryError;
+      }
     }
+  }
+
+  /**
+   * Provider text, cut short and stripped of control characters, for adapters that
+   * log a provider's own reason next to their failure.
+   */
+  forLog(text: string): string {
+    return text.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').slice(0, 200);
+  }
+
+  private logFailure(error: unknown, label: string): void {
+    if (!(error instanceof UpstreamRequestError)) {
+      this.logger.warn(`${label} unavailable: ${String(error)}`);
+      return;
+    }
+    const detail = error.detail ? `: ${this.forLog(error.detail)}` : '';
+    this.logger.warn(`${label} unavailable (${error.kind})${detail}`);
   }
 }
 
@@ -92,7 +119,7 @@ async function requestOnce(
   }
 }
 
-/** Bytes of an error body kept for the log; the log line itself is cut further by forLog. */
+/** Bytes of an error body kept for the log; the log line itself is cut further by `forLog`. */
 const ERROR_DETAIL_BYTES = 4 * 1024;
 
 /**
@@ -154,20 +181,6 @@ async function readUpTo(
  */
 function discard(cancel: Promise<void> | undefined): void {
   cancel?.catch(() => undefined);
-}
-
-function logFailure(error: unknown, { label, logger }: JsonRequestOptions): void {
-  if (!(error instanceof UpstreamRequestError)) {
-    logger.warn(`${label} unavailable: ${String(error)}`);
-    return;
-  }
-  const detail = error.detail ? `: ${forLog(error.detail)}` : '';
-  logger.warn(`${label} unavailable (${error.kind})${detail}`);
-}
-
-/** Provider text, cut short and stripped of control characters so it cannot forge log lines. */
-export function forLog(text: string): string {
-  return text.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').slice(0, 200);
 }
 
 // Not `instanceof Error`: fetch's DOMException can come from another realm (e.g. under Jest).

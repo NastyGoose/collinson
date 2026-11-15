@@ -1,6 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { HTTP_FETCH } from '../http/http.constants';
-import type { HttpFetch } from '../http/http.types';
+import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { JsonRequestService } from '../http/json-request.service';
 import { ATMOSPHERIC_SPEC } from './forecast.constants';
 import { OpenMeteoForecastClient } from './open-meteo-forecast.client';
 
@@ -8,9 +8,11 @@ import { OpenMeteoForecastClient } from './open-meteo-forecast.client';
 @Injectable()
 export class OpenMeteoAtmosphericClient extends OpenMeteoForecastClient {
   readonly spec = ATMOSPHERIC_SPEC;
-  protected readonly logger = new Logger(OpenMeteoAtmosphericClient.name);
 
-  constructor(@Inject(HTTP_FETCH) fetch: HttpFetch) {
-    super(fetch);
+  constructor(
+    http: JsonRequestService,
+    @InjectPinoLogger(OpenMeteoAtmosphericClient.name) logger: PinoLogger,
+  ) {
+    super(http, logger);
   }
 }

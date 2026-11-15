@@ -1,8 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { HTTP_FETCH } from '../http/http.constants';
-import type { HttpFetch } from '../http/http.types';
-import { forLog, requestJson } from '../http/json-request';
+import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { UpstreamRequestError } from '../http/http.errors';
+import { JsonRequestService } from '../http/json-request.service';
 import {
   GEOCODING_REQUEST_COUNT,
   GEOCODING_TIMEOUT_MS,
@@ -21,9 +20,10 @@ import { parseGeocodingResponse } from './open-meteo-geocoding.mapper';
  */
 @Injectable()
 export class OpenMeteoGeocodingClient {
-  private readonly logger = new Logger(OpenMeteoGeocodingClient.name);
-
-  constructor(@Inject(HTTP_FETCH) private readonly fetch: HttpFetch) {}
+  constructor(
+    private readonly http: JsonRequestService,
+    @InjectPinoLogger(OpenMeteoGeocodingClient.name) private readonly logger: PinoLogger,
+  ) {}
 
   async search(query: string, countryCode: string | null): Promise<Location[]> {
     const url = new URL(OPEN_METEO_GEOCODING_URL);
@@ -37,11 +37,7 @@ export class OpenMeteoGeocodingClient {
 
     let body: unknown;
     try {
-      body = await requestJson(this.fetch, url, {
-        label: 'Geocoding',
-        timeoutMs: GEOCODING_TIMEOUT_MS,
-        logger: this.logger,
-      });
+      body = await this.http.get(url, { label: 'Geocoding', timeoutMs: GEOCODING_TIMEOUT_MS });
     } catch (error) {
       throw error instanceof UpstreamRequestError ? toGeocodingError(error) : error;
     }
@@ -49,7 +45,7 @@ export class OpenMeteoGeocodingClient {
       return parseGeocodingResponse(body, countryCode);
     } catch (error) {
       if (error instanceof GeocodingUnavailableError) {
-        const detail = typeof error.cause === 'string' ? `: ${forLog(error.cause)}` : '';
+        const detail = typeof error.cause === 'string' ? `: ${this.http.forLog(error.cause)}` : '';
         this.logger.warn(`Geocoding unavailable (${error.kind})${detail}`);
       }
       throw error;
