@@ -4,8 +4,10 @@
 // empties it. Folder names are today's (locations, forecasts, activities);
 // the refactor renames them here in the same change.
 
-const DOMAINS = 'locations|forecasts|activities|activity-forecast|health';
-const INFRASTRUCTURE = 'clock|config|http|prisma|logger|calendar';
+const DOMAINS = 'locations|forecasts|activities|activity-forecast';
+const INFRASTRUCTURE = 'clock|config|http|prisma|logger|calendar|health';
+// Pure folders whose .logic files are their public API (ADR 0006).
+const PUBLIC_LOGIC = '^src/(calendar|activities)/.+[.]logic[.]ts$';
 const FRAMEWORK_PACKAGES = '^node_modules/(@nestjs|@prisma)/';
 
 /** @type {import('dependency-cruiser').IConfiguration} */
@@ -24,6 +26,14 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/activities/' },
       to: { path: [`^src/(prisma|http|generated|logger|clock|config)/`, FRAMEWORK_PACKAGES] },
+    },
+    {
+      name: 'pure-no-io-domains',
+      comment:
+        "ADR 0006: activity and calendar code never import another domain's module, service, repository or client.",
+      severity: 'error',
+      from: { path: '^src/(activities|calendar)/' },
+      to: { path: '^src/[^/]+/.+[.](module|service|repository|client)[.]ts$' },
     },
     {
       name: 'activities-no-core',
@@ -63,10 +73,13 @@ module.exports = {
     {
       name: 'no-domain-internals',
       comment:
-        "ADR 0006: use another domain's module, service, types, constants or errors, never its repository, client, logic or mapper.",
+        "ADR 0006: use another domain's module, service, types, constants or errors, never its repository, client, logic or mapper. The .logic files of the pure calendar and activity folders are public.",
       severity: 'error',
       from: { path: '^src/([^/]+)/' },
-      to: { path: '^src/[^/]+/.+[.](repository|client|logic|mapper)[.]ts$', pathNot: '^src/$1/' },
+      to: {
+        path: '^src/[^/]+/.+[.](repository|client|logic|mapper)[.]ts$',
+        pathNot: ['^src/$1/', PUBLIC_LOGIC],
+      },
     },
     {
       name: 'no-test-imports-in-src',
