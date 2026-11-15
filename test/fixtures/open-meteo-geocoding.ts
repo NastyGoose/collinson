@@ -88,6 +88,19 @@ export const PENICHE_PT: RawResult = {
   timezone: 'Europe/Lisbon',
 };
 
+/** Geocodes to the WARSAW location of the weather fixtures (Europe/Warsaw, UTC+1 in November). */
+export const WARSAW_PL: RawResult = {
+  id: 756135,
+  name: 'Warsaw',
+  latitude: 52.22977,
+  longitude: 21.01178,
+  feature_code: 'PPLC',
+  country_code: 'PL',
+  country: 'Poland',
+  admin1: 'Masovia',
+  timezone: 'Europe/Warsaw',
+};
+
 /** A no-match: the provider omits `results` entirely. */
 export const NO_MATCH = { generationtime_ms: 0.05 };
 

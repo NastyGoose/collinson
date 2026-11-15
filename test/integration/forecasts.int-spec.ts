@@ -24,6 +24,7 @@ import {
 import { deferred } from '../support/deferred';
 import { FixedClock } from '../support/fixed-clock';
 import { fixtureFetch, jsonResponse, timeoutError } from '../support/fixture-fetch';
+import { callsSettled } from '../support/settled';
 
 const NOON = '2026-11-14T12:00:00.000Z';
 /** Peniche (Europe/Lisbon) is UTC+0 in November: its "today" starts at 00:00 UTC. */
@@ -262,7 +263,7 @@ describe('ForecastsService with PostgreSQL', () => {
 
       const requests = Array.from({ length: 5 }, () => weatherFor(PENICHE));
       // Five callers read both sources before any of them reaches a refresh.
-      await readsSettled(snapshotReads, 10);
+      await callsSettled(snapshotReads, 10);
       held.resolve();
       const results = await Promise.all(requests);
 
@@ -309,12 +310,12 @@ describe('ForecastsService with PostgreSQL', () => {
 
       clock.set('2026-11-14T22:59:00Z'); // 23:59 in Warsaw: window 15th–21st
       const beforeMidnight = weatherFor(WARSAW);
-      await readsSettled(snapshotReads, 2);
+      await callsSettled(snapshotReads, 2);
       clock.set('2026-11-14T23:01:00Z'); // 00:01 on the 15th: window 16th–22nd
       // Counted from here: the first caller's refreshes also read the stored rows.
       const readsBefore = snapshotReads.mock.calls.length;
       const afterMidnight = weatherFor(WARSAW);
-      await readsSettled(snapshotReads, readsBefore + 2);
+      await callsSettled(snapshotReads, readsBefore + 2);
       held.resolve();
       const [early, late] = await Promise.all([beforeMidnight, afterMidnight]);
 
@@ -481,19 +482,4 @@ function withoutHour(body: Payload, instant: string): Payload {
     ]),
   );
   return { ...body, hourly };
-}
-
-/**
- * Waits until `reads` has been called at least `count` times and every read has
- * settled, then one more macrotask, so each caller has joined or started its refresh.
- */
-async function readsSettled(
-  reads: jest.SpyInstance<Promise<unknown>>,
-  count: number,
-): Promise<void> {
-  while (reads.mock.calls.length < count) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-  await Promise.all(reads.mock.results.map((result): unknown => result.value));
-  await new Promise((resolve) => setImmediate(resolve));
 }

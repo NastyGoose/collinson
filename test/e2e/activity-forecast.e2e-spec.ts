@@ -2,39 +2,34 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { INestApplication, Logger } from '@nestjs/common';
 import { GraphQLSchemaHost } from '@nestjs/graphql';
-import { Test } from '@nestjs/testing';
 import {
   buildSchema,
   findBreakingChanges,
   findDangerousChanges,
   type GraphQLSchema,
 } from 'graphql';
-import request from 'supertest';
 import { App } from 'supertest/types';
 import { ATTRIBUTION } from '../../src/activity-forecast/activity-forecast.mapper';
-import { AppModule } from '../../src/app.module';
-import { Clock } from '../../src/clock/clock';
 import { ForecastStorageUnavailableError } from '../../src/forecasts/forecast.errors';
 import { ForecastsRepository } from '../../src/forecasts/forecasts.repository';
-import { HTTP_FETCH, type HttpFetch } from '../../src/http/http-fetch';
+import type { HttpFetch } from '../../src/http/http-fetch';
 import { StorageUnavailableError } from '../../src/locations/location.errors';
 import { LocationsRepository } from '../../src/locations/locations.repository';
 import { PrismaService } from '../../src/prisma/prisma.service';
-import {
-  NO_MATCH,
-  PENICHE_PT,
-  resultsBody,
-  SPRINGFIELD_IL,
-  SPRINGFIELD_MA,
-  SPRINGFIELD_MO,
-} from '../fixtures/open-meteo-geocoding';
 import { atmosphericBody, marineBody, PENICHE } from '../fixtures/open-meteo-weather';
 import { FixedClock } from '../support/fixed-clock';
-import { fixtureFetch, jsonResponse, timeoutError } from '../support/fixture-fetch';
+import { jsonResponse, timeoutError } from '../support/fixture-fetch';
+import {
+  FakeOpenMeteo,
+  FORECAST_QUERY,
+  LOCATIONS_QUERY,
+  postForecast,
+  postGraphQL,
+  startForecastApp,
+  type GraphQLBody,
+} from '../support/forecast-app';
 
 const NOON = '2026-11-14T12:00:00.000Z';
-/** Peniche (Europe/Lisbon) is UTC+0 in November: its "today" starts at 00:00 UTC. */
-const PENICHE_TODAY = '2026-11-14T00:00:00Z';
 const WINDOW_DATES = [
   '2026-11-15',
   '2026-11-16',
@@ -136,137 +131,24 @@ const TECHNICAL_DESIGN_SDL = /* GraphQL */ `
   }
 `;
 
-const FORECAST_QUERY = /* GraphQL */ `
-  query Forecast($input: ForecastInput!) {
-    activityForecast(input: $input) {
-      __typename
-      ... on ActivityForecast {
-        location {
-          id
-          name
-          country
-          region
-          latitude
-          longitude
-          timezone
-        }
-        startDate
-        endDate
-        scoringVersion
-        attribution
-        activities {
-          activity
-          days {
-            date
-            availability
-            score
-            rank
-            reason
-            unavailableCode
-          }
-        }
-        sources {
-          source
-          freshness
-          fetchedAt
-          failureCode
-          reason
-        }
-      }
-      ... on AmbiguousLocation {
-        candidates {
-          id
-          name
-          region
-          timezone
-        }
-      }
-      ... on LocationNotFound {
-        message
-      }
-    }
-  }
-`;
-
-const LOCATIONS_QUERY = /* GraphQL */ `
-  query Locations($city: String!, $countryCode: String) {
-    locations(city: $city, countryCode: $countryCode) {
-      id
-      name
-      country
-      region
-      timezone
-    }
-  }
-`;
-
-type Answer = () => Response | Promise<Response>;
-
-/** Fixture Open-Meteo for all three APIs, routed by host; geocoding by the `name` parameter. */
-class FakeOpenMeteo {
-  geocoding: Record<string, Answer> = {
-    peniche: () => jsonResponse(resultsBody(PENICHE_PT)),
-    springfield: () => jsonResponse(resultsBody(SPRINGFIELD_MO, SPRINGFIELD_IL, SPRINGFIELD_MA)),
-    atlantis: () => jsonResponse(NO_MATCH),
-  };
-  atmospheric: Answer = () => jsonResponse(atmosphericBody({ firstHour: PENICHE_TODAY }));
-  marine: Answer = () => jsonResponse(marineBody({ firstHour: PENICHE_TODAY }));
-  readonly calls = { geocoding: 0, atmospheric: 0, marine: 0 };
-  readonly misses: string[] = [];
-  readonly fetch = fixtureFetch((url) => {
-    if (url.hostname === 'geocoding-api.open-meteo.com') {
-      this.calls.geocoding += 1;
-      const answer = this.geocoding[url.searchParams.get('name') ?? ''];
-      if (answer !== undefined) {
-        return answer();
-      }
-    } else if (url.hostname === 'api.open-meteo.com') {
-      this.calls.atmospheric += 1;
-      return this.atmospheric();
-    } else if (url.hostname === 'marine-api.open-meteo.com') {
-      this.calls.marine += 1;
-      return this.marine();
-    }
-    this.misses.push(url.toString());
-    throw new Error(`no fixture for ${url.toString()}`);
-  });
-}
-
-interface GraphQLBody {
-  data?: Record<string, unknown> | null;
-  errors?: { message: string; extensions?: Record<string, unknown> }[];
-}
-
 describe('activity forecast GraphQL contract (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
   let upstream: FakeOpenMeteo;
   const clock = new FixedClock(NOON);
 
-  async function post(query: string, variables: Record<string, unknown>): Promise<GraphQLBody> {
-    const response = await request(app.getHttpServer())
-      .post('/graphql')
-      .send({ query, variables })
-      .expect(200);
-    return response.body as GraphQLBody;
+  function post(query: string, variables: Record<string, unknown>): Promise<GraphQLBody> {
+    return postGraphQL(app, query, variables);
   }
 
-  async function forecast(input: Record<string, unknown>) {
-    const body = await post(FORECAST_QUERY, { input });
-    expect(body.errors).toBeUndefined();
-    return (body.data as { activityForecast: Record<string, unknown> }).activityForecast;
+  async function forecast(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return postForecast(app, input);
   }
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      // Delegates to the current test's fixtures, which beforeEach replaces.
-      .overrideProvider(HTTP_FETCH)
-      .useValue(((input, init) => upstream.fetch(input, init)) satisfies HttpFetch)
-      .overrideProvider(Clock)
-      .useValue(clock)
-      .compile();
-    app = moduleRef.createNestApplication();
-    await app.init();
+    // Delegates to the current test's fixtures, which beforeEach replaces.
+    app = await startForecastApp(clock, ((input, init) =>
+      upstream.fetch(input, init)) satisfies HttpFetch);
     prisma = app.get(PrismaService);
   });
 
