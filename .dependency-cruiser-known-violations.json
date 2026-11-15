@@ -1366,5 +1366,33 @@
       "severity": "error",
       "name": "no-spec-in-src"
     }
+  },
+  {
+    "type": "dependency",
+    "from": "src/activities/day-samples.spec.ts",
+    "to": "src/forecasts/open-meteo-atmospheric.client.ts",
+    "unresolvedTo": "../forecasts/open-meteo-atmospheric.client",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "pure-no-io-domains"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/activities/day-samples.spec.ts",
+    "to": "src/forecasts/open-meteo-marine.client.ts",
+    "unresolvedTo": "../forecasts/open-meteo-marine.client",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "pure-no-io-domains"
+    }
   }
 ]

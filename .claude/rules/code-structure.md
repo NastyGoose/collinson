@@ -49,9 +49,10 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 
 - `no-circular`: no circular imports.
 - `activities-pure`, `activities-no-core`, `calendar-pure` and `calendar-no-core`: activity and calendar code import no infrastructure, framework or Node.js core code.
+- `pure-no-io-domains`: activity and calendar code never import another domain's `.module`, `.service`, `.repository` or `.client` files.
 - `no-upward-imports`: domains never import `activity-forecast` or `health`.
-- `infrastructure-no-domain`: infrastructure never imports a domain.
-- `no-domain-internals`: from another domain, import only its `.module`, `.service`, `.types`, `.constants` or `.errors` files.
+- `infrastructure-no-domain`: infrastructure, including `health` and `calendar`, never imports a domain.
+- `no-domain-internals`: from another domain, import only its `.module`, `.service`, `.types`, `.constants` or `.errors` files. The `.logic` files of the pure `calendar` and `activity` folders are public and may be imported too.
 - `no-test-imports-in-src`: production code never imports from `test/`.
 - `no-spec-in-src`: no spec files under `src/`.
 

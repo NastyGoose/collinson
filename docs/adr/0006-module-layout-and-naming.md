@@ -44,9 +44,9 @@ Examples: `forecast.service.ts`, `forecast.constants.ts` for the freshness limit
 **Module boundaries.**
 
 - No circular dependencies.
-- `activity` and `calendar` are pure. They import no `prisma`, `http`, `generated`, `logger`, `clock` or `config` code, no `@nestjs/*` or `@prisma/*` package and no Node.js core module.
-- Lower layers never import upward. `location`, `forecast` and `activity` never import `activity-forecast` or `health`. Infrastructure folders never import domain folders.
-- A module may use another domain's `.module`, `.service`, `.types`, `.constants` and `.errors` files. It never imports another domain's `.repository`, `.client`, `.logic` or `.mapper` files.
+- `activity` and `calendar` are pure. They import no `prisma`, `http`, `generated`, `logger`, `clock` or `config` code, no `@nestjs/*` or `@prisma/*` package and no Node.js core module. They also never import another domain's `.module`, `.service`, `.repository` or `.client` files. They may import its `.types`, `.constants` and `.errors` files.
+- Lower layers never import upward. `location`, `forecast` and `activity` never import `activity-forecast` or `health`. Infrastructure folders, including `health` and `calendar`, never import domain folders.
+- A module may use another domain's `.module`, `.service`, `.types`, `.constants` and `.errors` files. It never imports another domain's `.repository`, `.client`, `.logic` or `.mapper` files. The exceptions are the pure `calendar` and `activity` folders: they cannot offer a Nest service, so their `.logic` files are their public API. The resolver calls `activity-scoring.logic.ts`, and every module may use the calendar's logic.
 - Production code never imports from `test/`.
 
 **Enforcement.** `npm run lint:structure` runs dependency-cruiser in CI with the boundary rules above, plus a rule that no `*.spec.ts` file lives under `src/`. It checks imports, not names or file contents. The `architect` Claude agent and code review cover file roles, the separation of types, constants and logic, and logger use. The short working form of these rules is `.claude/rules/code-structure.md`.
