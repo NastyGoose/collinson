@@ -1,6 +1,6 @@
 import type { PinoLogger } from 'nestjs-pino';
 import { UpstreamRequestError } from '../http/http.errors';
-import type { JsonRequestService } from '../http/json-request.service';
+import { JsonRequestService } from '../http/json-request.service';
 import { OPEN_METEO_TIMEOUT_MS } from './forecast.constants';
 import { SourceRefreshError, type SourceFailureCode } from './forecast.errors';
 import type { ForecastLocation, ForecastSourceSpec, NormalizedForecast } from './forecast.types';
@@ -13,11 +13,10 @@ import { forecastUrl, parseForecastResponse } from './open-meteo-forecast.mapper
  */
 export abstract class OpenMeteoForecastClient {
   abstract readonly spec: ForecastSourceSpec;
+  /** Injected by each subclass under its own class name. */
+  protected abstract readonly logger: PinoLogger;
 
-  protected constructor(
-    private readonly http: JsonRequestService,
-    private readonly logger: PinoLogger,
-  ) {}
+  protected constructor(private readonly http: JsonRequestService) {}
 
   async fetchForecast(location: ForecastLocation): Promise<NormalizedForecast> {
     const { label } = this.spec;
@@ -34,7 +33,8 @@ export abstract class OpenMeteoForecastClient {
       return parseForecastResponse(body, this.spec, location);
     } catch (error) {
       if (error instanceof SourceRefreshError) {
-        const detail = typeof error.cause === 'string' ? `: ${this.http.forLog(error.cause)}` : '';
+        const detail =
+          typeof error.cause === 'string' ? `: ${JsonRequestService.forLog(error.cause)}` : '';
         this.logger.warn(`${label} unavailable (${error.code})${detail}`);
       } else {
         this.logger.warn(`${label} unavailable: ${String(error)}`);

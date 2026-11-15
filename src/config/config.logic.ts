@@ -1,7 +1,5 @@
-import { DEFAULT_LOG_LEVEL, LOG_LEVELS } from './config.constants';
+import { DEFAULT_LOG_LEVEL, DEFAULT_PORT, LOG_LEVELS } from './config.constants';
 import type { Env, LogLevel } from './config.types';
-
-const DEFAULT_PORT = 3000;
 
 /**
  * Validates the process environment for ConfigModule. Fails at startup with a

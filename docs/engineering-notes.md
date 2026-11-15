@@ -145,6 +145,14 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - `forLog` became a public `JsonRequestService` method. A `.logic` file in `http` would be a forbidden cross-folder import, and a function exported from a service file would mix roles.
   - Tests are silenced by a Jest setup file that sets `LOG_LEVEL=silent` unless the run sets it. Production code has no test detection. Unit specs build a real silent `PinoLogger` and spy on it, so the assertion on sanitized provider text needs no cast.
   - An invalid `LOG_LEVEL` fails startup like any other configuration key.
+- **Architect review, 5 low findings fixed:**
+  - The abstract forecast client no longer takes a logger parameter; each subclass injects its own.
+  - `forLog` is static.
+  - `HttpModule` stops exporting the now-internal `HTTP_FETCH`.
+  - The `jsonRequest` test helper has its own file.
+  - `DEFAULT_PORT` joined `DEFAULT_LOG_LEVEL` in `config.constants.ts`.
+
+  Its optional suggestion was taken too: an oxlint rule now rejects `Logger` from `@nestjs/common` under `src/`, so that part of the ADR is checked mechanically.
 - **Check:**
   - The built app logs JSON lines at `info` (every line of the startup log is JSON), and `LOG_LEVEL=warn` drops them.
   - `LOG_LEVEL=verbose` exits 1 and names the accepted values.

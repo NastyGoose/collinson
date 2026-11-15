@@ -1,5 +1,8 @@
 import type { LogLevel } from './config.types';
 
+/** PORT when it is not set. */
+export const DEFAULT_PORT = 3000;
+
 /** Accepted LOG_LEVEL values, most severe first. */
 export const LOG_LEVELS: readonly LogLevel[] = [
   'fatal',

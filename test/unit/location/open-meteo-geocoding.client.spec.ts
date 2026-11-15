@@ -10,7 +10,8 @@ import {
 } from '../../fixtures/open-meteo-geocoding';
 import { rejected } from '../../support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../support/fixture-fetch';
-import { jsonRequest, silentLogger } from '../../support/logger';
+import { jsonRequest } from '../../support/json-request';
+import { silentLogger } from '../../support/logger';
 import { GeocodingUnavailableError } from '../../../src/location/location.errors';
 import {
   GEOCODING_REQUEST_COUNT,

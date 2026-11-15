@@ -11,8 +11,8 @@ export class OpenMeteoAtmosphericClient extends OpenMeteoForecastClient {
 
   constructor(
     http: JsonRequestService,
-    @InjectPinoLogger(OpenMeteoAtmosphericClient.name) logger: PinoLogger,
+    @InjectPinoLogger(OpenMeteoAtmosphericClient.name) protected readonly logger: PinoLogger,
   ) {
-    super(http, logger);
+    super(http);
   }
 }
