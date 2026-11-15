@@ -30,7 +30,7 @@ npm run build
 npm run start:prod         # GraphQL endpoint at http://localhost:3000/graphql
 ```
 
-`npm run start` (compile and run) and `npm run start:dev` (watch mode) also work. The defaults in `.env.example` match `compose.yaml`. If port 5432 is already in use, set `POSTGRES_PORT` in `.env` and change the port in both URLs. If `DATABASE_URL` is missing or invalid, the app stops at startup and names the key to fix.
+npm 11 may warn during `npm ci` that it skipped the install scripts of `prisma` and `@prisma/engines`. Setup, migrations and tests work without them. `npm run start` (compile and run) and `npm run start:dev` (watch mode) also work. The defaults in `.env.example` match `compose.yaml`. If port 5432 is already in use, set `POSTGRES_PORT` in `.env` and change the port in both URLs. If `DATABASE_URL` is missing or invalid, the app stops at startup and names the key to fix.
 
 Check that it is up, from a second terminal:
 
