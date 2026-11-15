@@ -1,26 +1,25 @@
 import { PENICHE } from '../../fixtures/open-meteo-weather';
 import { atmosphericForecast, marineForecast } from '../../fixtures/scoring-weather';
 import { FixedClock } from '../../support/fixed-clock';
-import { ForecastStorageUnavailableError } from '../../../src/forecasts/forecast.errors';
+import { ForecastStorageUnavailableError } from '../../../src/forecast/forecast.errors';
 import { forecastWindow } from '../../../src/calendar/calendar.logic';
 import type { ForecastWindow } from '../../../src/calendar/calendar.types';
+import type { ForecastService } from '../../../src/forecast/forecast.service';
 import type {
-  ForecastsService,
   ForecastWeather,
   SourceResult,
-} from '../../../src/forecasts/forecasts.service';
-import type { NormalizedForecast, WeatherSource } from '../../../src/forecasts/weather-source';
-import type { Location } from '../../../src/locations/location';
+  NormalizedForecast,
+  WeatherSource,
+} from '../../../src/forecast/forecast.types';
+import type { Location } from '../../../src/location/location.types';
 import {
   GeocodingUnavailableError,
   InvalidLocationInputError,
   StorageUnavailableError,
-} from '../../../src/locations/location.errors';
-import type { LocationsService } from '../../../src/locations/locations.service';
-import {
-  ATTRIBUTION,
-  type ActivityForecast,
-} from '../../../src/activity-forecast/activity-forecast.mapper';
+} from '../../../src/location/location.errors';
+import type { LocationService } from '../../../src/location/location.service';
+import { ATTRIBUTION } from '../../../src/activity-forecast/activity-forecast.constants';
+import type { ActivityForecast } from '../../../src/activity-forecast/activity-forecast.types';
 import {
   ActivityForecastResolver,
   ForecastResultResolver,
@@ -54,8 +53,8 @@ function setup() {
   const locations = { search: jest.fn(), resolve: jest.fn() };
   const forecasts = { getWeather: jest.fn() };
   const resolver = new ActivityForecastResolver(
-    locations as unknown as LocationsService,
-    forecasts as unknown as ForecastsService,
+    locations as unknown as LocationService,
+    forecasts as unknown as ForecastService,
     clock,
   );
   locations.resolve.mockResolvedValue({ kind: 'resolved', location: PENICHE });

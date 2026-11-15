@@ -1,4 +1,4 @@
-import type { HttpFetch } from '../../src/http/http-fetch';
+import type { HttpFetch } from '../../src/http/http.types';
 
 export function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

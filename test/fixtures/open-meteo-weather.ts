@@ -3,7 +3,7 @@
  * responses probed on 2026-11-14 (Peniche atmospheric, Warsaw marine): metadata,
  * declared units and 192 hourly rows from local midnight, as Unix seconds.
  */
-import type { Location } from '../../src/locations/location';
+import type { Location } from '../../src/location/location.types';
 
 const HOUR_S = 60 * 60;
 

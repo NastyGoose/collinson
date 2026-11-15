@@ -3,8 +3,9 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../../src/app.module';
-import { Clock } from '../../src/clock/clock';
-import { HTTP_FETCH, type HttpFetch } from '../../src/http/http-fetch';
+import { Clock } from '../../src/clock/clock.service';
+import { HTTP_FETCH } from '../../src/http/http.constants';
+import type { HttpFetch } from '../../src/http/http.types';
 
 export const FORECAST_QUERY = /* GraphQL */ `
   query Forecast($input: ForecastInput!) {

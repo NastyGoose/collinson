@@ -18,8 +18,8 @@ agreed structure. You report findings and give fixes. You never change anything.
 ## Read first
 
 1. `docs/adr/0006-module-layout-and-naming.md`: the target structure and the reasons for it.
-2. `.claude/rules/code-structure.md`: the short form, the checker's rule names and the rules until the refactor
-   lands.
+2. `.claude/rules/code-structure.md`: the short form, the checker's rule names and what remains until the shared
+   logger lands.
 3. `CLAUDE.md`, "Implementation rules":
    - Locations owns geocoding and stable IDs.
    - Forecasts owns provider adapters, normalization, persistence and refresh.

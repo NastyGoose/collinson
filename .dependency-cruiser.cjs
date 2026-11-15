@@ -1,12 +1,10 @@
 // Module boundary rules from docs/adr/0006-module-layout-and-naming.md.
 // Run with `npm run lint:structure`; there is no list of known violations.
-// Folder names are today's (locations, forecasts, activities); the refactor
-// renames them here in the same change.
 
-const DOMAINS = 'locations|forecasts|activities|activity-forecast';
+const DOMAINS = 'location|forecast|activity|activity-forecast';
 const INFRASTRUCTURE = 'clock|config|http|prisma|logger|calendar|health';
 // Pure folders whose .logic files are their public API (ADR 0006).
-const PUBLIC_LOGIC = '^src/(calendar|activities)/.+[.]logic[.]ts$';
+const PUBLIC_LOGIC = '^src/(calendar|activity)/.+[.]logic[.]ts$';
 const FRAMEWORK_PACKAGES = '^node_modules/(@nestjs|@prisma)/';
 
 /** @type {import('dependency-cruiser').IConfiguration} */
@@ -20,10 +18,10 @@ module.exports = {
       to: { circular: true },
     },
     {
-      name: 'activities-pure',
+      name: 'activity-pure',
       comment: 'ADR 0006: activity scoring imports no I/O, infrastructure or framework code.',
       severity: 'error',
-      from: { path: '^src/activities/' },
+      from: { path: '^src/activity/' },
       to: { path: ['^src/(prisma|http|generated|logger|clock|config)/', FRAMEWORK_PACKAGES] },
     },
     {
@@ -31,14 +29,14 @@ module.exports = {
       comment:
         "ADR 0006: activity and calendar code never import another domain's module, service, repository or client.",
       severity: 'error',
-      from: { path: '^src/(activities|calendar)/' },
+      from: { path: '^src/(activity|calendar)/' },
       to: { path: '^src/[^/]+/.+[.](module|service|repository|client)[.]ts$' },
     },
     {
-      name: 'activities-no-core',
+      name: 'activity-no-core',
       comment: 'ADR 0006: activity scoring imports no Node.js core module.',
       severity: 'error',
-      from: { path: '^src/activities/' },
+      from: { path: '^src/activity/' },
       to: { dependencyTypes: ['core'] },
     },
     {
@@ -59,7 +57,7 @@ module.exports = {
       name: 'no-upward-imports',
       comment: 'ADR 0006: domains never import the GraphQL entry point or health.',
       severity: 'error',
-      from: { path: '^src/(locations|forecasts|activities)/' },
+      from: { path: '^src/(location|forecast|activity)/' },
       to: { path: '^src/(activity-forecast|health)/' },
     },
     {

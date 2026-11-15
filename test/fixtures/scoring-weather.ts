@@ -3,14 +3,14 @@
  * states exactly which sample it changes. Defaults are the dry 20 °C, 25 km/h day
  * of the Technical Design example, with 1.2 m waves at 12 s on the marine side.
  */
-import type { WeatherField } from '../../src/activities/day-samples';
+import type { WeatherField } from '../../src/activity/activity.types';
 import { addDays, toLocalDateTime } from '../../src/calendar/calendar.logic';
 import type { ForecastWindow } from '../../src/calendar/calendar.types';
 import type {
   Coordinates,
   NormalizedForecast,
   WeatherSource,
-} from '../../src/forecasts/weather-source';
+} from '../../src/forecast/forecast.types';
 
 const HOUR_S = 60 * 60;
 

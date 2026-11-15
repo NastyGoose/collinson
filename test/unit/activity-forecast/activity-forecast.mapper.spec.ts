@@ -1,7 +1,7 @@
 import { PENICHE } from '../../fixtures/open-meteo-weather';
 import { atmosphericForecast } from '../../fixtures/scoring-weather';
 import { forecastWindow } from '../../../src/calendar/calendar.logic';
-import type { SourceResult } from '../../../src/forecasts/forecasts.service';
+import type { SourceResult } from '../../../src/forecast/forecast.types';
 import {
   scoringInputOf,
   toSourceStatus,

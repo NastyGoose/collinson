@@ -1,4 +1,4 @@
-import { Clock } from '../../src/clock/clock';
+import { Clock } from '../../src/clock/clock.service';
 
 /** Test clock: it only moves when a test moves it. */
 export class FixedClock extends Clock {

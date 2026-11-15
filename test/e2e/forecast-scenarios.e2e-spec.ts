@@ -1,7 +1,7 @@
 import { INestApplication, Logger } from '@nestjs/common';
 import { App } from 'supertest/types';
-import { ForecastsRepository } from '../../src/forecasts/forecasts.repository';
-import type { HttpFetch } from '../../src/http/http-fetch';
+import { ForecastRepository } from '../../src/forecast/forecast.repository';
+import type { HttpFetch } from '../../src/http/http.types';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { resultsBody, WARSAW_PL } from '../fixtures/open-meteo-geocoding';
 import {
@@ -278,7 +278,7 @@ describe('activity forecast scenarios (e2e)', () => {
         return warsawAtmospheric(WARSAW_15TH);
       };
       upstream.marine = () => warsawMarine(WARSAW_15TH);
-      const reads = jest.spyOn(app.get(ForecastsRepository), 'findSnapshot');
+      const reads = jest.spyOn(app.get(ForecastRepository), 'findSnapshot');
 
       clock.set('2026-11-14T22:59:00.000Z'); // 23:59 in Warsaw: window 15th–21st
       const beforeMidnight = forecast({ locationId: WARSAW.id });
@@ -368,7 +368,7 @@ describe('activity forecast scenarios (e2e)', () => {
         await held.promise;
         return marine();
       };
-      const reads = jest.spyOn(app.get(ForecastsRepository), 'findSnapshot');
+      const reads = jest.spyOn(app.get(ForecastRepository), 'findSnapshot');
 
       const requests = Array.from({ length: 3 }, () => forecast({ locationId: PENICHE.id }));
       // Each request reads both sources; the first also re-reads in each refresh it starts.

@@ -1,44 +1,8 @@
-import type { ActivityRanking, ActivityScores } from '../activities/activity';
-import type { SourceFailureCode } from '../forecasts/forecast.errors';
-import type { ForecastWeather, SourceResult } from '../forecasts/forecasts.service';
-import type { NormalizedForecast, WeatherSource } from '../forecasts/weather-source';
-import type { Location } from '../locations/location';
-import type { LocationResolution } from '../locations/locations.service';
-
-/**
- * Credit for the data behind every forecast: weather and geocoding both come from
- * Open-Meteo, whose terms require CC BY 4.0 attribution.
- */
-export const ATTRIBUTION =
-  'Weather and location data by Open-Meteo.com (https://open-meteo.com/), licensed under CC BY 4.0.';
-
-/** The GraphQL `SourceStatus` type. */
-export interface SourceStatus {
-  source: WeatherSource;
-  freshness: SourceResult['freshness'];
-  /** UTC ISO timestamp of the snapshot in use. */
-  fetchedAt: string | null;
-  failureCode: SourceFailureCode | null;
-  reason: string | null;
-}
-
-/** The GraphQL `ActivityForecast` type. */
-export interface ActivityForecast {
-  __typename: 'ActivityForecast';
-  location: Location;
-  startDate: string;
-  endDate: string;
-  scoringVersion: string;
-  activities: ActivityRanking[];
-  sources: SourceStatus[];
-  attribution: string;
-}
-
-/** The members of the GraphQL `ForecastResult` union, tagged with their type name. */
-export type ForecastResult =
-  | ActivityForecast
-  | { __typename: 'AmbiguousLocation'; candidates: Location[] }
-  | { __typename: 'LocationNotFound'; message: string };
+import type { ActivityScores } from '../activity/activity.types';
+import type { ForecastWeather, NormalizedForecast, SourceResult } from '../forecast/forecast.types';
+import type { Location, LocationResolution } from '../location/location.types';
+import { ATTRIBUTION } from './activity-forecast.constants';
+import type { ActivityForecast, ForecastResult, SourceStatus } from './activity-forecast.types';
 
 /** The resolutions that end the request before any weather is read. */
 export function toUnresolvedResult(

@@ -1,19 +1,14 @@
 import { UseFilters } from '@nestjs/common';
 import { Args, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { scoreActivities } from '../activities/activity-scoring';
-import { Clock } from '../clock/clock';
+import { scoreActivities } from '../activity/activity-scoring.logic';
+import { Clock } from '../clock/clock.service';
 import { forecastWindow } from '../calendar/calendar.logic';
-import { ForecastsService } from '../forecasts/forecasts.service';
-import type { Location } from '../locations/location';
-import type { LocationSelectorInput } from '../locations/location-input';
-import { LocationsService } from '../locations/locations.service';
-import {
-  scoringInputOf,
-  toActivityForecast,
-  toUnresolvedResult,
-  type ForecastResult,
-} from './activity-forecast.mapper';
-import { DomainErrorFilter } from './graphql-errors';
+import { ForecastService } from '../forecast/forecast.service';
+import type { Location, LocationSelectorInput } from '../location/location.types';
+import { LocationService } from '../location/location.service';
+import { scoringInputOf, toActivityForecast, toUnresolvedResult } from './activity-forecast.mapper';
+import type { ForecastResult } from './activity-forecast.types';
+import { DomainErrorFilter } from './activity-forecast.filter';
 
 /**
  * The `locations` and `activityForecast` queries. Orchestrates Locations,
@@ -25,8 +20,8 @@ import { DomainErrorFilter } from './graphql-errors';
 @UseFilters(DomainErrorFilter)
 export class ActivityForecastResolver {
   constructor(
-    private readonly locations: LocationsService,
-    private readonly forecasts: ForecastsService,
+    private readonly locations: LocationService,
+    private readonly forecasts: ForecastService,
     private readonly clock: Clock,
   ) {}
 
