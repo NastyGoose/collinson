@@ -1,8 +1,11 @@
-import { PENICHE } from '../../test/fixtures/open-meteo-weather';
-import { atmosphericForecast } from '../../test/fixtures/scoring-weather';
-import { forecastWindow } from '../forecasts/forecast-window';
-import type { SourceResult } from '../forecasts/forecasts.service';
-import { scoringInputOf, toSourceStatus } from './activity-forecast.mapper';
+import { PENICHE } from '../../fixtures/open-meteo-weather';
+import { atmosphericForecast } from '../../fixtures/scoring-weather';
+import { forecastWindow } from '../../../src/forecasts/forecast-window';
+import type { SourceResult } from '../../../src/forecasts/forecasts.service';
+import {
+  scoringInputOf,
+  toSourceStatus,
+} from '../../../src/activity-forecast/activity-forecast.mapper';
 
 const WINDOW = forecastWindow(new Date('2026-11-14T12:00:00Z'), PENICHE.timezone);
 const SNAPSHOT = {

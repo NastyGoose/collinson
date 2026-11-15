@@ -7,11 +7,11 @@ import {
   ORIGIN,
   withoutInstant,
   type WeatherOverrides,
-} from '../../test/fixtures/scoring-weather';
-import { forecastWindow } from '../forecasts/forecast-window';
-import type { NormalizedForecast } from '../forecasts/weather-source';
-import type { Activity, ActivityScores, RankedDay } from './activity';
-import { scoreActivities } from './activity-scoring';
+} from '../../fixtures/scoring-weather';
+import { forecastWindow } from '../../../src/forecasts/forecast-window';
+import type { NormalizedForecast } from '../../../src/forecasts/weather-source';
+import type { Activity, ActivityScores, RankedDay } from '../../../src/activities/activity';
+import { scoreActivities } from '../../../src/activities/activity-scoring';
 
 const WINDOW = forecastWindow(new Date('2026-11-14T12:00:00Z'), 'Europe/Lisbon');
 const [D1, D2, D3, D4, D5, D6, D7] = WINDOW.dates;

@@ -6,18 +6,24 @@ import {
   PENICHE,
   WARSAW,
   type Payload,
-} from '../../test/fixtures/open-meteo-weather';
-import { rejected, thrown } from '../../test/support/errors';
-import { fixtureFetch, jsonResponse, timeoutError } from '../../test/support/fixture-fetch';
-import { MAX_RESPONSE_BYTES } from '../http/json-request';
-import { SourceRefreshError } from './forecast.errors';
-import { ATMOSPHERIC_SPEC, OpenMeteoAtmosphericClient } from './open-meteo-atmospheric.client';
+} from '../../fixtures/open-meteo-weather';
+import { rejected, thrown } from '../../support/errors';
+import { fixtureFetch, jsonResponse, timeoutError } from '../../support/fixture-fetch';
+import { MAX_RESPONSE_BYTES } from '../../../src/http/json-request';
+import { SourceRefreshError } from '../../../src/forecasts/forecast.errors';
+import {
+  ATMOSPHERIC_SPEC,
+  OpenMeteoAtmosphericClient,
+} from '../../../src/forecasts/open-meteo-atmospheric.client';
 import {
   FORECAST_DAYS_REQUESTED,
   OPEN_METEO_TIMEOUT_MS,
   parseForecastResponse,
-} from './open-meteo-forecast';
-import { MARINE_SPEC, OpenMeteoMarineClient } from './open-meteo-marine.client';
+} from '../../../src/forecasts/open-meteo-forecast';
+import {
+  MARINE_SPEC,
+  OpenMeteoMarineClient,
+} from '../../../src/forecasts/open-meteo-marine.client';
 
 const FIRST_HOUR = '2026-11-14T00:00:00Z';
 

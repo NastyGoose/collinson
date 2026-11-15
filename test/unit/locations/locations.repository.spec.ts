@@ -1,10 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { rejected } from '../../test/support/errors';
-import { Prisma } from '../generated/prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { StorageUnavailableError } from './location.errors';
-import { LocationsRepository } from './locations.repository';
+import { rejected } from '../../support/errors';
+import { Prisma } from '../../../src/generated/prisma/client';
+import { PrismaService } from '../../../src/prisma/prisma.service';
+import { StorageUnavailableError } from '../../../src/locations/location.errors';
+import { LocationsRepository } from '../../../src/locations/locations.repository';
 
 function knownError(code: string): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError(`prisma ${code}`, {

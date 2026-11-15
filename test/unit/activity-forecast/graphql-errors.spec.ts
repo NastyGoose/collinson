@@ -1,11 +1,14 @@
 import { GraphQLError } from 'graphql';
-import { ForecastStorageUnavailableError } from '../forecasts/forecast.errors';
+import { ForecastStorageUnavailableError } from '../../../src/forecasts/forecast.errors';
 import {
   GeocodingUnavailableError,
   InvalidLocationInputError,
   StorageUnavailableError,
-} from '../locations/location.errors';
-import { DomainErrorFilter, formatGraphQLError } from './graphql-errors';
+} from '../../../src/locations/location.errors';
+import {
+  DomainErrorFilter,
+  formatGraphQLError,
+} from '../../../src/activity-forecast/graphql-errors';
 
 describe('DomainErrorFilter', () => {
   const filter = new DomainErrorFilter();

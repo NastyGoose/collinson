@@ -1,8 +1,8 @@
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { validateEnv } from '../config/env';
-import { PrismaModule } from './prisma.module';
-import { PrismaService } from './prisma.service';
+import { validateEnv } from '../../../src/config/env';
+import { PrismaModule } from '../../../src/prisma/prisma.module';
+import { PrismaService } from '../../../src/prisma/prisma.service';
 
 describe('PrismaService', () => {
   const originalUrl = process.env.DATABASE_URL;

@@ -58,9 +58,9 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 
 ## Until the refactor lands
 
-The existing files still use the old layout: plural folders, specs in `src/`, mixed files and `new Logger`. The refactor ticket migrates them. Until then:
+The existing files still use the old layout: plural folders, mixed files and `new Logger`. The refactor ticket migrates them. Until then:
 
 - add no new deviation;
 - put new unit specs in `test/unit/`;
-- make sure `npm run lint:structure` passes (`.dependency-cruiser-known-violations.json` lists the old violations, and only the refactor may shrink it);
+- make sure `npm run lint:structure` passes (it has no list of known violations);
 - when it is unclear where new code belongs, ask the `architect` agent in placement mode.

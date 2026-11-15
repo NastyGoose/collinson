@@ -4,7 +4,7 @@ import {
   forecastWindow,
   sameWindow,
   toLocalDateTime,
-} from './forecast-window';
+} from '../../../src/forecasts/forecast-window';
 
 const HOUR_S = 3600;
 

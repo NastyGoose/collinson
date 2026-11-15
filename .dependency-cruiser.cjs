@@ -1,8 +1,7 @@
 // Module boundary rules from docs/adr/0006-module-layout-and-naming.md.
-// Run with `npm run lint:structure`. Known violations that predate ADR 0006
-// live in .dependency-cruiser-known-violations.json until the refactor
-// empties it. Folder names are today's (locations, forecasts, activities);
-// the refactor renames them here in the same change.
+// Run with `npm run lint:structure`; there is no list of known violations.
+// Folder names are today's (locations, forecasts, activities); the refactor
+// renames them here in the same change.
 
 const DOMAINS = 'locations|forecasts|activities|activity-forecast';
 const INFRASTRUCTURE = 'clock|config|http|prisma|logger|calendar|health';

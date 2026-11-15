@@ -1,4 +1,4 @@
-import { validateEnv } from './env';
+import { validateEnv } from '../../../src/config/env';
 
 const DATABASE_URL = 'postgresql://user:secret@localhost:5432/collinson';
 

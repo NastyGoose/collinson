@@ -1,23 +1,29 @@
-import { PENICHE } from '../../test/fixtures/open-meteo-weather';
-import { atmosphericForecast, marineForecast } from '../../test/fixtures/scoring-weather';
-import { FixedClock } from '../../test/support/fixed-clock';
-import { ForecastStorageUnavailableError } from '../forecasts/forecast.errors';
-import { forecastWindow, type ForecastWindow } from '../forecasts/forecast-window';
+import { PENICHE } from '../../fixtures/open-meteo-weather';
+import { atmosphericForecast, marineForecast } from '../../fixtures/scoring-weather';
+import { FixedClock } from '../../support/fixed-clock';
+import { ForecastStorageUnavailableError } from '../../../src/forecasts/forecast.errors';
+import { forecastWindow, type ForecastWindow } from '../../../src/forecasts/forecast-window';
 import type {
   ForecastsService,
   ForecastWeather,
   SourceResult,
-} from '../forecasts/forecasts.service';
-import type { NormalizedForecast, WeatherSource } from '../forecasts/weather-source';
-import type { Location } from '../locations/location';
+} from '../../../src/forecasts/forecasts.service';
+import type { NormalizedForecast, WeatherSource } from '../../../src/forecasts/weather-source';
+import type { Location } from '../../../src/locations/location';
 import {
   GeocodingUnavailableError,
   InvalidLocationInputError,
   StorageUnavailableError,
-} from '../locations/location.errors';
-import type { LocationsService } from '../locations/locations.service';
-import { ATTRIBUTION, type ActivityForecast } from './activity-forecast.mapper';
-import { ActivityForecastResolver, ForecastResultResolver } from './activity-forecast.resolver';
+} from '../../../src/locations/location.errors';
+import type { LocationsService } from '../../../src/locations/locations.service';
+import {
+  ATTRIBUTION,
+  type ActivityForecast,
+} from '../../../src/activity-forecast/activity-forecast.mapper';
+import {
+  ActivityForecastResolver,
+  ForecastResultResolver,
+} from '../../../src/activity-forecast/activity-forecast.resolver';
 
 /** Lisbon is UTC+0 in November: 23:59:30 local is a moment before midnight. */
 const BEFORE_MIDNIGHT = '2026-11-14T23:59:30.000Z';

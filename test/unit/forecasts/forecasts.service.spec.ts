@@ -1,18 +1,38 @@
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { atmosphericBody, marineBody, PENICHE } from '../../test/fixtures/open-meteo-weather';
-import { deferred } from '../../test/support/deferred';
-import { rejected } from '../../test/support/errors';
-import { FixedClock } from '../../test/support/fixed-clock';
-import { Clock } from '../clock/clock';
-import { ForecastStorageUnavailableError, SourceRefreshError } from './forecast.errors';
-import { forecastWindow } from './forecast-window';
-import { ForecastsRepository } from './forecasts.repository';
-import { FRESH_FOR_MS, ForecastsService, STALE_FALLBACK_MS } from './forecasts.service';
-import { ATMOSPHERIC_SPEC, OpenMeteoAtmosphericClient } from './open-meteo-atmospheric.client';
-import { parseForecastResponse, type ForecastLocation } from './open-meteo-forecast';
-import { MARINE_SPEC, OpenMeteoMarineClient } from './open-meteo-marine.client';
-import type { NormalizedForecast, WeatherSnapshot, WeatherSource } from './weather-source';
+import { atmosphericBody, marineBody, PENICHE } from '../../fixtures/open-meteo-weather';
+import { deferred } from '../../support/deferred';
+import { rejected } from '../../support/errors';
+import { FixedClock } from '../../support/fixed-clock';
+import { Clock } from '../../../src/clock/clock';
+import {
+  ForecastStorageUnavailableError,
+  SourceRefreshError,
+} from '../../../src/forecasts/forecast.errors';
+import { forecastWindow } from '../../../src/forecasts/forecast-window';
+import { ForecastsRepository } from '../../../src/forecasts/forecasts.repository';
+import {
+  FRESH_FOR_MS,
+  ForecastsService,
+  STALE_FALLBACK_MS,
+} from '../../../src/forecasts/forecasts.service';
+import {
+  ATMOSPHERIC_SPEC,
+  OpenMeteoAtmosphericClient,
+} from '../../../src/forecasts/open-meteo-atmospheric.client';
+import {
+  parseForecastResponse,
+  type ForecastLocation,
+} from '../../../src/forecasts/open-meteo-forecast';
+import {
+  MARINE_SPEC,
+  OpenMeteoMarineClient,
+} from '../../../src/forecasts/open-meteo-marine.client';
+import type {
+  NormalizedForecast,
+  WeatherSnapshot,
+  WeatherSource,
+} from '../../../src/forecasts/weather-source';
 
 const NOON = '2026-11-14T12:00:00.000Z';
 /** Lisbon is UTC+0 in November: the provider's "today" starts at 00:00 UTC. */

@@ -1,6 +1,6 @@
-import { thrown } from '../../test/support/errors';
-import { normalizeCitySearch, parseLocationSelector } from './location-input';
-import { InvalidLocationInputError } from './location.errors';
+import { thrown } from '../../support/errors';
+import { normalizeCitySearch, parseLocationSelector } from '../../../src/locations/location-input';
+import { InvalidLocationInputError } from '../../../src/locations/location.errors';
 
 function inputError(run: () => unknown): InvalidLocationInputError {
   return thrown(run, InvalidLocationInputError);

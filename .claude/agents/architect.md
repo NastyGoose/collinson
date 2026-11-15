@@ -25,7 +25,7 @@ agreed structure. You report findings and give fixes. You never change anything.
    - Forecasts owns provider adapters, normalization, persistence and refresh.
    - Activities computes scores with no I/O.
    - The resolver only orchestrates and maps.
-4. `.dependency-cruiser.cjs` and `.dependency-cruiser-known-violations.json`.
+4. `.dependency-cruiser.cjs`.
 
 ## Pick the mode from the request
 
@@ -39,9 +39,7 @@ agreed structure. You report findings and give fixes. You never change anything.
 ## Method
 
 1. Run the checker:
-   - Audit: `npx depcruise src test --config .dependency-cruiser.cjs --output-type err` for everything, including
-     known violations, then `npm run lint:structure` for new violations only.
-   - Review: `npm run lint:structure` only.
+   - Audit and review: `npm run lint:structure`. It runs with no list of known violations, so every report is new.
    - The checker reads the checked-out working tree. If you are reviewing another branch or a PR that is not
      checked out, do not run it. Judge the boundaries from the diff instead, and say in the verdict line that the
      checker was not run on that change.
@@ -63,9 +61,7 @@ agreed structure. You report findings and give fixes. You never change anything.
 Return this report as your final message. Do not write it to disk.
 
 1. **Verdict.** One line: `clean`, or `N findings (x high, y medium, z low)`. Severity:
-   - **high**: a boundary violation that is not in the known-violations list, or I/O in pure code.
-   - Known violations (the specs still under `src/`, for example) are **medium**. Report them once per file, not
-     once per import edge.
+   - **high**: a boundary violation the checker reports, or I/O in pure code.
    - **medium**: mixed types, constants or logic, wrong role, logger construction, or a misplaced responsibility.
    - **low**: naming only.
 2. **Module map.** A Mermaid `flowchart LR` with one node per `src/` folder and one edge per folder-to-folder

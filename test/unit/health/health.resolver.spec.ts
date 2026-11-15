@@ -1,5 +1,5 @@
-import type { PrismaService } from '../prisma/prisma.service';
-import { HealthResolver } from './health.resolver';
+import type { PrismaService } from '../../../src/prisma/prisma.service';
+import { HealthResolver } from '../../../src/health/health.resolver';
 
 function resolverWithDatabase(reachable: boolean): HealthResolver {
   const prisma = { isReachable: jest.fn().mockResolvedValue(reachable) };
