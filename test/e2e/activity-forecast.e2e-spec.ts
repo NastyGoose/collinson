@@ -9,12 +9,12 @@ import {
   type GraphQLSchema,
 } from 'graphql';
 import { App } from 'supertest/types';
-import { ATTRIBUTION } from '../../src/activity-forecast/activity-forecast.mapper';
-import { ForecastStorageUnavailableError } from '../../src/forecasts/forecast.errors';
-import { ForecastsRepository } from '../../src/forecasts/forecasts.repository';
-import type { HttpFetch } from '../../src/http/http-fetch';
-import { StorageUnavailableError } from '../../src/locations/location.errors';
-import { LocationsRepository } from '../../src/locations/locations.repository';
+import { ATTRIBUTION } from '../../src/activity-forecast/activity-forecast.constants';
+import { ForecastStorageUnavailableError } from '../../src/forecast/forecast.errors';
+import { ForecastRepository } from '../../src/forecast/forecast.repository';
+import type { HttpFetch } from '../../src/http/http.types';
+import { StorageUnavailableError } from '../../src/location/location.errors';
+import { LocationRepository } from '../../src/location/location.repository';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { atmosphericBody, marineBody, PENICHE } from '../fixtures/open-meteo-weather';
 import { FixedClock } from '../support/fixed-clock';
@@ -289,7 +289,7 @@ describe('activity forecast GraphQL contract (e2e)', () => {
 
   it('reports a snapshot storage failure as STORAGE_UNAVAILABLE', async () => {
     jest
-      .spyOn(app.get(ForecastsRepository), 'findSnapshot')
+      .spyOn(app.get(ForecastRepository), 'findSnapshot')
       // Both sources fail their read, so no refresh outlives the response.
       .mockRejectedValue(
         new ForecastStorageUnavailableError('Could not read a forecast snapshot.'),
@@ -310,7 +310,7 @@ describe('activity forecast GraphQL contract (e2e)', () => {
 
   it('reports a location storage failure as STORAGE_UNAVAILABLE', async () => {
     jest
-      .spyOn(app.get(LocationsRepository), 'findFreshSearch')
+      .spyOn(app.get(LocationRepository), 'findFreshSearch')
       .mockRejectedValue(new StorageUnavailableError('Could not read a location search.'));
 
     for (const [query, variables] of [
@@ -331,7 +331,7 @@ describe('activity forecast GraphQL contract (e2e)', () => {
   it('masks an unexpected failure as INTERNAL_SERVER_ERROR without its details', async () => {
     const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest
-      .spyOn(app.get(ForecastsRepository), 'findSnapshot')
+      .spyOn(app.get(ForecastRepository), 'findSnapshot')
       .mockRejectedValue(new Error('relation "forecast_snapshots" does not exist'));
 
     const body = await post(FORECAST_QUERY, { input: { city: 'Peniche' } });

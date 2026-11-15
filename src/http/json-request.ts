@@ -1,42 +1,6 @@
-import type { Logger } from '@nestjs/common';
-import type { HttpFetch } from './http-fetch';
-
-/** Why an upstream JSON request failed, before an adapter maps it to its own error. */
-export type UpstreamFailureKind =
-  'TIMEOUT' | 'NETWORK' | 'RATE_LIMITED' | 'HTTP_ERROR' | 'INVALID_JSON' | 'TOO_LARGE';
-
-/**
- * Largest body read from a provider. An eight-day hourly forecast is about 20 kB
- * and a geocoding search a few kB, so this only stops a runaway answer.
- */
-export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-
-/**
- * A failed upstream request. `message` is client-facing and carries no provider
- * text; `detail` holds provider text (an error body) for logs only.
- */
-export class UpstreamRequestError extends Error {
-  constructor(
-    readonly kind: UpstreamFailureKind,
-    message: string,
-    readonly transient: boolean,
-    readonly detail?: string,
-    options?: { cause?: unknown },
-  ) {
-    super(message, options);
-    this.name = 'UpstreamRequestError';
-  }
-}
-
-export interface JsonRequestOptions {
-  /** Names the provider in messages and logs, e.g. "Geocoding" or "Marine forecast". */
-  label: string;
-  /** Limit for each attempt, covering the response body as well as the headers. */
-  timeoutMs: number;
-  /** Largest body accepted, in bytes; defaults to MAX_RESPONSE_BYTES. */
-  maxBytes?: number;
-  logger: Logger;
-}
+import { MAX_RESPONSE_BYTES } from './http.constants';
+import { UpstreamRequestError } from './http.errors';
+import type { HttpFetch, JsonRequestOptions } from './http.types';
 
 /**
  * GETs a JSON body with a per-attempt timeout and at most one retry, only after a

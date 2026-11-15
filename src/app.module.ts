@@ -4,9 +4,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ActivityForecastModule } from './activity-forecast/activity-forecast.module';
-import { formatGraphQLError } from './activity-forecast/graphql-errors';
+import { formatGraphQLError } from './activity-forecast/activity-forecast-error.mapper';
 import { ClockModule } from './clock/clock.module';
-import { validateEnv } from './config/env';
+import { validateEnv } from './config/config.logic';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 

@@ -1,6 +1,6 @@
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { validateEnv } from '../../../src/config/env';
+import { validateEnv } from '../../../src/config/config.logic';
 import { PrismaModule } from '../../../src/prisma/prisma.module';
 import { PrismaService } from '../../../src/prisma/prisma.service';
 

@@ -116,6 +116,23 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - `task-explainer` keeps one `artifacts.md` line per page;
   - two unwrapped lines are now wrapped.
 
+### 2026-11-15 — Applying ADR 0006 (ARC-54, ARC-56)
+
+- **Inventory:** the architect agent audited `main` in its own context and found 53 deviations: 50 medium and 3 low (naming only). All 100 baseline entries were import edges from the 18 specs under `src/`. The other findings were mixed files, role-less names, plural folders and per-class loggers.
+- **Question:** one PR or several? **Decision (AI, under the ticket's own rule):** two subtickets under ARC-54. The layout ([ARC-56](https://linear.app/archiview/issue/ARC-56/dev-apply-the-adr-0006-module-layout-and-remove-the-structure-baseline)) changes no behaviour. The logger ([ARC-57](https://linear.app/archiview/issue/ARC-57/dev-use-the-shared-nestjs-pino-logger-by-injection)) adds a dependency and changes the log format, so it is verified on its own. The order is forced: editing a spec while it still sits under `src/` adds a new import edge to the baseline, so the specs move first and the logger follows.
+- **Commits, each green:**
+  1. move the specs and delete the baseline;
+  2. extract `src/calendar/`;
+  3. rename to singular folders and classes, and split files by role.
+  Splitting files defeats git's rename detection, so the third commit is best reviewed on its own.
+- **Choices the ADR left open:**
+  - `isStorageFailure` goes to `prisma.errors.ts`. A `.logic` name would turn the repositories' import into a forbidden cross-folder one.
+  - The scoring formulas become `activity-formula.logic.ts`, so `activity-scoring.logic.ts` stays the public entry point the ADR names.
+  - `ScoringVersion` is a type, so `activity.types.ts` does not import the constants file, which would close a cycle.
+  - `WEATHER_SOURCES` had no importer and was deleted.
+  - Specs that tested both a client and its parser, or both the filter and the error formatter, were split along their existing `describe` blocks.
+- **Check:** after the rename, a probe file for each rule (activity importing a forecast client, `@nestjs/common` or `node:fs`; calendar importing another folder; location importing forecast internals; infrastructure importing a domain; a spec under `src/`) made `lint:structure` fail with the expected rule names. Without that probe, rule regexes left on the old folder names would have passed silently. Test counts are unchanged: 320 unit, 43 integration and 35 E2E.
+
 ## Scope cuts
 
 - **Product:** no frontend, accounts, booking, resort, venue or beach lookup, personalized proficiency, historical analytics, alerts or hosted deployment. All were cut in the specifications.

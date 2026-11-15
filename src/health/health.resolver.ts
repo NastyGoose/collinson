@@ -1,12 +1,6 @@
 import { Query, Resolver } from '@nestjs/graphql';
 import { PrismaService } from '../prisma/prisma.service';
-
-export type HealthStatus = 'UP' | 'DOWN';
-
-export interface Health {
-  service: HealthStatus;
-  database: HealthStatus;
-}
+import type { Health } from './health.types';
 
 @Resolver('Health')
 export class HealthResolver {

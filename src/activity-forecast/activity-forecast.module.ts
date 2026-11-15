@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ForecastsModule } from '../forecasts/forecasts.module';
-import { LocationsModule } from '../locations/locations.module';
+import { ForecastModule } from '../forecast/forecast.module';
+import { LocationModule } from '../location/location.module';
 import { ActivityForecastResolver, ForecastResultResolver } from './activity-forecast.resolver';
 
 /**
@@ -8,7 +8,7 @@ import { ActivityForecastResolver, ForecastResultResolver } from './activity-for
  * activity forecast. Depends on the global ClockModule.
  */
 @Module({
-  imports: [LocationsModule, ForecastsModule],
+  imports: [LocationModule, ForecastModule],
   providers: [ActivityForecastResolver, ForecastResultResolver],
 })
 export class ActivityForecastModule {}

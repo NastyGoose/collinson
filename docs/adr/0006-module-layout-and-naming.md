@@ -55,13 +55,11 @@ Examples: `forecast.service.ts`, `forecast.constants.ts` for the freshness limit
 
 Readers find a domain's types and constants without opening its logic, and a file name says what the file holds. Activity scoring and the calendar stay testable without Nest or a database. Log lines become structured and share one configuration.
 
-The code does not follow this record yet. A separate refactor ticket moves the files, renames the domain folders, adds `src/calendar/` and `src/logger/`, and installs `nestjs-pino`. Until it lands:
+The refactor that applies this record is [ARC-54](https://linear.app/archiview/issue/ARC-54/dev-refactor-the-codebase-to-match-adr-0006), in two parts:
 
-- `.dependency-cruiser-known-violations.json` lists the existing violations. CI fails only on new ones. The refactor empties and deletes the file.
-- The checker's rules name today's folders: `locations`, `forecasts` and `activities`. The refactor renames them in the rules in the same change.
-- The unit Jest config reads both `src` and `test/unit`, so new unit specs go to `test/unit/` already. The refactor drops `src`.
-- Of the role names the cross-domain rule forbids, only `.repository`, `.client` and `activity-forecast.mapper.ts` exist today. The rule covers `.logic` files, and the other domains' mappers, once the refactor names files by role. Until then, role-less files such as `forecast-window.ts` pass the checker.
+- [ARC-56](https://linear.app/archiview/issue/ARC-56/dev-apply-the-adr-0006-module-layout-and-remove-the-structure-baseline) moved the unit specs to `test/unit/`, added `src/calendar/`, renamed the domain folders and their classes to the singular, and named and split the files by role. The known-violations baseline that CI used while the old layout stood is deleted; `lint:structure` now fails on any violation.
+- [ARC-57](https://linear.app/archiview/issue/ARC-57/dev-use-the-shared-nestjs-pino-logger-by-injection) adds `src/logger/` and `nestjs-pino`, injects the logger and turns `src/http/json-request.ts` into an injectable service. Until it lands, classes still construct `new Logger`.
 
-The refactor touches the import paths of every unit spec and the logger spies in tests. The README's layout section and CLAUDE.md change with it.
+Two placements the rules above do not name: `isStorageFailure`, which classifies Prisma error codes, lives in `prisma.errors.ts`, because a `.logic` name would make the repositories' import a forbidden cross-folder one. The scoring v1 formulas are `activity-formula.logic.ts`, so that `activity-scoring.logic.ts` stays the folder's public entry point.
 
 [ADR 0001](0001-nestjs-graphql-backend.md) · [ADR 0003](0003-local-window-and-forecast-refresh.md) · [ADR 0005](0005-deterministic-activity-scoring.md) · [ARC-52](https://linear.app/archiview/issue/ARC-52/dev-record-structure-rules-and-add-an-architect-agent-with-a-ci)

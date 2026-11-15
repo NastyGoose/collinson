@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
-import type { Env } from '../config/env';
+import type { Env } from '../config/config.types';
 
 /**
  * The single Prisma Client for this NestJS process (ADR 0002). Nest calls

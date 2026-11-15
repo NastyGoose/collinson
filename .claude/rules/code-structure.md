@@ -48,7 +48,7 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 `npm run lint:structure` checks these rules:
 
 - `no-circular`: no circular imports.
-- `activities-pure`, `activities-no-core`, `calendar-pure` and `calendar-no-core`: activity and calendar code import no infrastructure, framework or Node.js core code.
+- `activity-pure`, `activity-no-core`, `calendar-pure` and `calendar-no-core`: activity and calendar code import no infrastructure, framework or Node.js core code.
 - `pure-no-io-domains`: activity code never imports another domain's `.module`, `.service`, `.repository` or `.client` files. Calendar code imports nothing else from `src/` at all.
 - `no-upward-imports`: domains never import `activity-forecast` or `health`.
 - `infrastructure-no-domain`: infrastructure, including `health` and `calendar`, never imports a domain.
@@ -56,11 +56,10 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 - `no-test-imports-in-src`: production code never imports from `test/`.
 - `no-spec-in-src` and `no-spec-in-src-orphan`: no spec files under `src/`.
 
-## Until the refactor lands
+## Until the logger lands
 
-The existing files still use the old layout: plural folders, mixed files and `new Logger`. The refactor ticket migrates them. Until then:
+The layout follows these rules ([ARC-56](https://linear.app/archiview/issue/ARC-56/dev-apply-the-adr-0006-module-layout-and-remove-the-structure-baseline)). The shared logger is still to come ([ARC-57](https://linear.app/archiview/issue/ARC-57/dev-use-the-shared-nestjs-pino-logger-by-injection)): classes still construct `new Logger`, and `src/http/json-request.ts` still takes a logger parameter and has no role suffix. Until then:
 
 - add no new deviation;
-- put new unit specs in `test/unit/`;
 - make sure `npm run lint:structure` passes (it has no list of known violations);
 - when it is unclear where new code belongs, ask the `architect` agent in placement mode.
