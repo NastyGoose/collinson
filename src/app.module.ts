@@ -7,9 +7,7 @@ import { ActivityForecastModule } from './activity-forecast/activity-forecast.mo
 import { formatGraphQLError } from './activity-forecast/graphql-errors';
 import { ClockModule } from './clock/clock.module';
 import { validateEnv } from './config/env';
-import { ForecastsModule } from './forecasts/forecasts.module';
 import { HealthModule } from './health/health.module';
-import { LocationsModule } from './locations/locations.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -28,8 +26,6 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     ClockModule,
     HealthModule,
-    LocationsModule,
-    ForecastsModule,
     ActivityForecastModule,
   ],
 })

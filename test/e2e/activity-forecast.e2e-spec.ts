@@ -17,6 +17,8 @@ import { Clock } from '../../src/clock/clock';
 import { ForecastStorageUnavailableError } from '../../src/forecasts/forecast.errors';
 import { ForecastsRepository } from '../../src/forecasts/forecasts.repository';
 import { HTTP_FETCH, type HttpFetch } from '../../src/http/http-fetch';
+import { StorageUnavailableError } from '../../src/locations/location.errors';
+import { LocationsRepository } from '../../src/locations/locations.repository';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import {
   NO_MATCH,
@@ -422,6 +424,26 @@ describe('activity forecast GraphQL contract (e2e)', () => {
         }),
       ],
     });
+  });
+
+  it('reports a location storage failure as STORAGE_UNAVAILABLE', async () => {
+    jest
+      .spyOn(app.get(LocationsRepository), 'findFreshSearch')
+      .mockRejectedValue(new StorageUnavailableError('Could not read a location search.'));
+
+    for (const [query, variables] of [
+      [FORECAST_QUERY, { input: { city: 'Peniche' } }],
+      [LOCATIONS_QUERY, { city: 'Peniche' }],
+    ] as const) {
+      const body = await post(query, variables);
+
+      expect(body.data).toBeNull();
+      expect(body.errors?.[0]).toMatchObject({
+        message: 'Could not read a location search.',
+        extensions: { code: 'STORAGE_UNAVAILABLE' },
+      });
+    }
+    expect(upstream.calls.geocoding).toBe(0);
   });
 
   it('masks an unexpected failure as INTERNAL_SERVER_ERROR without its details', async () => {

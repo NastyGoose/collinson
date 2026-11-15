@@ -1,6 +1,5 @@
 import type { ActivityRanking, ActivityScores } from '../activities/activity';
 import type { SourceFailureCode } from '../forecasts/forecast.errors';
-import type { ForecastWindow } from '../forecasts/forecast-window';
 import type { ForecastWeather, SourceResult } from '../forecasts/forecasts.service';
 import type { NormalizedForecast, WeatherSource } from '../forecasts/weather-source';
 import type { Location } from '../locations/location';
@@ -88,12 +87,13 @@ export function toSourceStatus(result: SourceResult): SourceStatus {
   }
 }
 
+/** `weather.window` is the frozen window both the sources and the scores were judged against. */
 export function toActivityForecast(
   location: Location,
-  window: ForecastWindow,
   weather: ForecastWeather,
   scores: ActivityScores,
 ): ActivityForecast {
+  const { window } = weather;
   return {
     __typename: 'ActivityForecast',
     location,

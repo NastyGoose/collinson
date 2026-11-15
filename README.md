@@ -123,7 +123,7 @@ query Forecast($input: ForecastInput!) {
 }
 ```
 
-with variables such as `{ "input": { "city": "Berlin", "countryCode": "DE" } }`. Pass exactly one of `city` and `locationId`; `countryCode` filters a city search only. A city with several matches returns `AmbiguousLocation`: every candidate is stored, so repeat the query with one candidate's `id`, as in `{ "input": { "locationId": "2264923" } }`. A stored ID resolves without geocoding, even while geocoding is down. An unknown city or ID returns `LocationNotFound`.
+with variables such as `{ "input": { "city": "Nazaré", "countryCode": "PT" } }`, which matches one place. Pass exactly one of `city` and `locationId`; `countryCode` filters a city search only. A city with several matches returns `AmbiguousLocation`: every candidate is stored, so repeat the query with one candidate's `id`, as in `{ "input": { "locationId": "2264923" } }`. A stored ID resolves without geocoding, even while geocoding is down. An unknown city or ID returns `LocationNotFound`.
 
 Errors carry a stable `extensions.code`: `BAD_USER_INPUT` for an invalid selector or filter (with `extensions.field` naming the input at fault, or null for the selector as a whole), `GEOCODING_UNAVAILABLE` when a city search needs Open-Meteo geocoding and it fails, and `STORAGE_UNAVAILABLE` when PostgreSQL cannot serve the request. GraphQL's own request errors keep their codes, such as `GRAPHQL_VALIDATION_FAILED` for an unknown field. Any other failure is reported as `INTERNAL_SERVER_ERROR` with a generic message; details go to the server log only.
 
