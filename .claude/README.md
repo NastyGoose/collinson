@@ -31,6 +31,18 @@ To make them available to every project, copy them into your personal skills fol
 
 `task-explainer/template.html` is the page template shared by `task-explainer` and `pr-walkthrough`.
 
+## Agents and rules
+
+These are project-specific, unlike the skills above.
+
+| Kind | File | What it does |
+| --- | --- | --- |
+| Agent | [`agents/architect.md`](agents/architect.md) | Read-only architect. It audits module dependencies and file structure against ADR 0006, reviews a branch or PR for layout and boundary problems, and proposes where new code goes. It returns a module map, findings with `path:line`, and a migration list for audits |
+| Rule | [`rules/code-structure.md`](rules/code-structure.md) | The working form of ADR 0006, loaded when Claude works in `src/` or `test/` |
+
+Ask for the agent by name, for example "use the architect to review this branch" or "ask the architect where the new
+cache should go". `npm run lint:structure` is its mechanical counterpart in CI.
+
 ## What the skills expect from a project
 
 Nothing is hardcoded. Each skill looks these up in the repo (`CLAUDE.md` / `AGENTS.md`, README, contribution docs,

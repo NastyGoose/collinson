@@ -154,8 +154,11 @@ npm run test:integration   # migrations, location and forecast persistence again
 npm run test:e2e           # the GraphQL contract and acceptance scenarios over HTTP
 npm run typecheck
 npm run lint
+npm run lint:structure     # module boundaries from ADR 0006 (dependency-cruiser)
 npm run format:check
 ```
+
+New unit specs go in `test/unit/`, mirroring `src/`. The specs still next to the code move there in a later refactor ([ADR 0006](docs/adr/0006-module-layout-and-naming.md)). `lint:structure` fails only on boundary violations that are not listed in `.dependency-cruiser-known-violations.json`.
 
 Integration and E2E tests need PostgreSQL running (`npm run db:up`) but never touch the development database. Each run connects with `TEST_DATABASE_ADMIN_URL`, creates its own `collinson_test_*` database, applies the checked-in migrations with `prisma migrate deploy` and drops the database at the end. The role in that URL needs the `CREATEDB` privilege, which the Compose role has. The tests use a fixed clock and a fake Open-Meteo that answers from fixtures, so they are deterministic and run offline.
 
@@ -208,6 +211,6 @@ Weather and geocoding data come from [Open-Meteo](https://open-meteo.com/) ([for
 - [Engineering notes](docs/engineering-notes.md): dated decisions, AI involvement, changes of mind and scope cuts.
 - [Architecture decision records](docs/adr/README.md): accepted decisions and their rationale.
 - [Initial specification draft](docs/assessment-specifications.md): the first draft, kept for history and superseded where the decisions differ.
-- [CLAUDE.md](CLAUDE.md) and [Claude skills](.claude/README.md): the instructions and task workflow used with Claude Code.
+- [CLAUDE.md](CLAUDE.md) and [Claude skills](.claude/README.md): the instructions, task workflow, code-structure rule and `architect` agent used with Claude Code.
 
 The finalized specifications, Technical Design and tickets were kept in the author's Notion and Linear workspaces. Links to them may require access, so the ADRs and engineering notes are written to stand on their own.
