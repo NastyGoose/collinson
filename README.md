@@ -158,7 +158,7 @@ npm run lint:structure     # module boundaries from ADR 0006 (dependency-cruiser
 npm run format:check
 ```
 
-Test runs are silent; set `LOG_LEVEL` for one run, such as `LOG_LEVEL=warn npm run test:e2e`, to see the service's logs. Unit specs live in `test/unit/`, mirroring `src/` ([ADR 0006](docs/adr/0006-module-layout-and-naming.md)). `lint:structure` fails on any boundary violation.
+Test runs are silent and ignore `LOG_LEVEL`; set `TEST_LOG_LEVEL` for one run, such as `TEST_LOG_LEVEL=warn npm run test:e2e`, to see the service's logs. Unit specs live in `test/unit/`, mirroring `src/` ([ADR 0006](docs/adr/0006-module-layout-and-naming.md)). `lint:structure` fails on any boundary violation.
 
 Integration and E2E tests need PostgreSQL running (`npm run db:up`) but never touch the development database. Each run connects with `TEST_DATABASE_ADMIN_URL`, creates its own `collinson_test_*` database, applies the checked-in migrations with `prisma migrate deploy` and drops the database at the end. The role in that URL needs the `CREATEDB` privilege, which the Compose role has. The tests use a fixed clock and a fake Open-Meteo that answers from fixtures, so they are deterministic and run offline.
 
