@@ -55,7 +55,7 @@ export class ActivityForecastResolver {
       atmospheric: scoringInputOf(weather.atmospheric),
       marine: scoringInputOf(weather.marine),
     });
-    return toActivityForecast(location, window, weather, scores);
+    return toActivityForecast(location, weather, scores);
   }
 }
 
