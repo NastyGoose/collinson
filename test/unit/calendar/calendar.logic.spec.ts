@@ -4,7 +4,7 @@ import {
   forecastWindow,
   sameWindow,
   toLocalDateTime,
-} from '../../../src/forecasts/forecast-window';
+} from '../../../src/calendar/calendar.logic';
 
 const HOUR_S = 3600;
 

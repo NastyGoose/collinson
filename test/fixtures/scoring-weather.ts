@@ -4,7 +4,8 @@
  * of the Technical Design example, with 1.2 m waves at 12 s on the marine side.
  */
 import type { WeatherField } from '../../src/activities/day-samples';
-import { addDays, toLocalDateTime, type ForecastWindow } from '../../src/forecasts/forecast-window';
+import { addDays, toLocalDateTime } from '../../src/calendar/calendar.logic';
+import type { ForecastWindow } from '../../src/calendar/calendar.types';
 import type {
   Coordinates,
   NormalizedForecast,

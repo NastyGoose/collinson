@@ -1,4 +1,4 @@
-import type { ForecastWindow } from '../forecasts/forecast-window';
+import type { ForecastWindow } from '../calendar/calendar.types';
 import type { NormalizedForecast, WeatherSource } from '../forecasts/weather-source';
 import {
   ACTIVITIES,

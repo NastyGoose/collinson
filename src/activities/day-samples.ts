@@ -1,4 +1,5 @@
-import { checkCoverage, toLocalDateTime, type ForecastWindow } from '../forecasts/forecast-window';
+import { checkCoverage, toLocalDateTime } from '../calendar/calendar.logic';
+import type { ForecastWindow } from '../calendar/calendar.types';
 import type { NormalizedForecast, WeatherSource } from '../forecasts/weather-source';
 
 /** Instantaneous fields are read at 09:00 through 17:00 local time (ADR 0005). */

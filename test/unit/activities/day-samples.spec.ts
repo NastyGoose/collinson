@@ -5,7 +5,7 @@ import {
 } from '../../fixtures/scoring-weather';
 import { ATMOSPHERIC_SPEC } from '../../../src/forecasts/open-meteo-atmospheric.client';
 import { MARINE_SPEC } from '../../../src/forecasts/open-meteo-marine.client';
-import { forecastWindow } from '../../../src/forecasts/forecast-window';
+import { forecastWindow } from '../../../src/calendar/calendar.logic';
 import {
   INSTANT_HOURS,
   max,
