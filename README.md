@@ -159,7 +159,7 @@ npm run format:check
 
 Integration and E2E tests need PostgreSQL running (`npm run db:up`) but never touch the development database. Each run connects with `TEST_DATABASE_ADMIN_URL`, creates its own `collinson_test_*` database, applies the checked-in migrations with `prisma migrate deploy` and drops the database at the end. The role in that URL needs the `CREATEDB` privilege, which the Compose role has. The tests use a fixed clock and a fake Open-Meteo that answers from fixtures, so they are deterministic and run offline.
 
-[CI](.github/workflows/ci.yml) runs these checks on every push and pull request against a PostgreSQL 17 service container. It then applies the migrations to an empty database, starts the built app and checks the `health` query.
+[CI](.github/workflows/ci.yml) runs these checks on every pull request and every push to `main`, against a PostgreSQL 17 service container. It then applies the migrations to an empty database, starts the built app and checks the `health` query.
 
 A live check against the real Open-Meteo is optional and not part of CI. Start the app, then run `npm run smoke:live`. It sends every file in `examples/` and checks the shape of each answer. On GitHub it can be started by hand as the [Live smoke workflow](.github/workflows/live-smoke.yml).
 
