@@ -127,8 +127,8 @@ export async function startForecastApp(
     .overrideProvider(Clock)
     .useValue(clock)
     .compile();
-  // As in main.ts: Nest's own logs go through the shared logger, silent in tests.
-  const app = moduleRef.createNestApplication<INestApplication<App>>({ bufferLogs: true });
+  // Nest's own logs go through the shared logger, as in main.ts.
+  const app = moduleRef.createNestApplication<INestApplication<App>>();
   app.useLogger(app.get(Logger));
   await app.init();
   return app;

@@ -10,7 +10,7 @@ describe('GraphQL endpoint (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication({ bufferLogs: true });
+    app = moduleRef.createNestApplication();
     app.useLogger(app.get(Logger));
     await app.init();
   });

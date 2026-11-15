@@ -143,7 +143,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Choices:**
   - Request access lines (`autoLogging`) are off. The ADR asks for structured logs of what the service does, not one line per GraphQL POST.
   - `forLog` became a public `JsonRequestService` method. A `.logic` file in `http` would be a forbidden cross-folder import, and a function exported from a service file would mix roles.
-  - Tests are silenced by a Jest setup file that sets `LOG_LEVEL=silent` unless the run sets it. Production code has no test detection. Unit specs build a real silent `PinoLogger` and spy on it, so the assertion on sanitized provider text needs no cast.
+  - Tests are silenced by a Jest setup file that sets `LOG_LEVEL` from `TEST_LOG_LEVEL`, `silent` by default. Production code has no test detection. Unit specs build a real silent `PinoLogger` and spy on it, so the assertion on sanitized provider text needs no cast.
   - An invalid `LOG_LEVEL` fails startup like any other configuration key.
 - **Architect review, 5 low findings fixed:**
   - The abstract forecast client no longer takes a logger parameter; each subclass injects its own.
@@ -156,8 +156,12 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Check:**
   - The built app logs JSON lines at `info` (every line of the startup log is JSON), and `LOG_LEVEL=warn` drops them.
   - `LOG_LEVEL=verbose` exits 1 and names the accepted values.
-  - A test run with `LOG_LEVEL=warn` shows the retry and failure warnings under their class contexts.
+  - A test run with `TEST_LOG_LEVEL=warn` shows the retry and failure warnings under their class contexts.
   - A probe confirmed that `nestjs-pino` and `pino` imports from activity and calendar now fail `lint:structure`.
+- **Self-review before merge, two gaps fixed:**
+  - Integration and E2E runs were not reliably silent. Their global setup loads `.env`, so a `LOG_LEVEL` set there, or an empty one, reached the tests: an empty `LOG_LEVEL=` printed 24 lines in one spec. Tests now take only `TEST_LOG_LEVEL`, `silent` by default.
+  - Every line logged during a GraphQL request carried the whole request, headers included, because pino-http binds it to the per-request logger even with access lines off. `quietReqLogger` keeps only the request id.
+  - The same review found that `bufferLogs` does nothing in a Nest testing module, so the test apps no longer pass it.
 
 ## Scope cuts
 
