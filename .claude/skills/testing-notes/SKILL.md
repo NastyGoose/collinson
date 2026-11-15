@@ -37,12 +37,12 @@ Run independent reads in parallel.
 | --- | --- |
 | PR | `gh pr view <n> --json number,title,url,state,isDraft,headRefName,headRefOid,body,files` and `gh repo view --json nameWithOwner` |
 | Criteria | The ticket's acceptance criteria, through the tracker's tools. If the project keeps acceptance scenarios elsewhere (an implementation plan, a spec), add the ones this ticket covers |
-| Tests in the diff | `gh pr diff <n>`: the test files added or changed, and each test's name and line at the head SHA (`git show "<headRefOid>:<path>"`) |
+| Tests in the diff | `gh pr diff <n>`: the test files added or changed, and each test's name and line at the head SHA (`git show "<headRefOid>:<path>"`). A PR with no tests (docs, CI config) is proven by inspection: link the files and lines that deliver each criterion |
 | CI | `gh pr checks <n>`, then `gh run list --commit <headRefOid> --json databaseId,name,conclusion,url`. Per relevant job, `gh run view <id> --log` (or `--log-failed`), trimmed to the lines that matter |
-| Handoff | `.claude-tmp/tasks/<KEY>/<KEY>.handoff.md`: `Automated coverage` and `Verify by hand` |
+| Handoff | `.claude-tmp/tasks/<KEY>/<KEY>.handoff.md`: `Automated coverage` and `Verify by hand`. `Do by hand` lists the author's actions, not checks. With no handoff, take the manual checks from the PR body's test plan |
 | Evidence | `.claude-tmp/tasks/<KEY>/evidence/evidence.md` and the files it lists (from `verify-handoff`): screenshots, captures, probe outputs |
 | Commands | The project's test, lint and typecheck commands, from `CLAUDE.md`, the README, package scripts or the CI config |
-| Companion page | `artifacts.md`: the `changes-<lang>` URL, for the header link |
+| Companion page | `artifacts.md`: the `changes-<lang>` URL, for the header link. Without one, leave the link out |
 
 With `--rerun`:
 
@@ -60,7 +60,9 @@ missing under "Gaps and risks".
 
 For each acceptance criterion:
 
-1. Restate it in plain words.
+1. Restate it in plain words. A criterion that bundles several claims ("document X, Y and Z") is split into one line
+   per claim inside its card, and each line gets its own verdict. The card's verdict is the weakest of them. With
+   the ticket out of reach, take the criteria from the PR body and say so in the lede.
 2. Find the tests that prove it:
    - the spec path, the test name, and a link to that line at the head SHA;
    - prefer tests that the diff adds or changes, then existing tests that cover the behaviour.
@@ -72,7 +74,7 @@ For each acceptance criterion:
 
 | Verdict | Pill | When |
 | --- | --- | --- |
-| proven | `pill-ok` | A test that exercises the criterion passed at this head, in CI or in a run you saw |
+| proven | `pill-ok` | A test that exercises the criterion passed at this head, in CI or in a run you saw. For a deliverable that is a document or configuration, you read it at the head and it says what the criterion asks, accurately (method: inspection) |
 | proven by hand only | `pill-warn` | No automated test, but an evidence file shows the manual check passed |
 | partial | `pill-warn` | Part of the criterion is proven; say which part is not |
 | not proven | `pill-bad` | No passing test or evidence seen, a failing or pending run, or a manual item with no evidence file |
@@ -84,8 +86,12 @@ Rules for verdicts:
 - **Pending or red runs.** A run that is pending or failed never yields "proven". Say so, and name the failing job.
 - **Manual checks without evidence.** A manual check with no evidence file is "not proven". Add "run
   `verify-handoff`" next to it.
-- **Evidence from another head.** Evidence from an older head counts only if the commits since then cannot affect
-  it. Say why, for example "later commits change only docs".
+- **Evidence from another head.** Evidence from another commit counts only if the code and tests it exercises are
+  the same there. Say why, for example "later commits change only docs" or "the merge commit has the same tree".
+  - Older commit: check that the commits since then cannot affect it.
+  - Newer commit, such as `main` after the merge: check that neither the test nor the code it covers changed in
+    between (`git diff <head> <newer> -- <paths>`). Otherwise list the run under "Test runs" as context only, never
+    as proof.
 
 ## 3. Evidence rules
 
@@ -108,7 +114,9 @@ Rules for verdicts:
 First call `Artifact` with `action: "quickstart"` and `intent: "other"`, once per new artifact. Then start from the
 template:
 
-- Keep its `<style>` and `<script>` verbatim.
+- Keep its `<style>` verbatim.
+- Keep its `<script>` verbatim when the page has a `.steps` list; otherwise delete it, because it only drives
+  `.steps`.
 - Replace every placeholder.
 - Set `lang` on `.page`.
 - Delete the guide comments and every component the page does not use.
@@ -121,7 +129,7 @@ Put the sections in this order. Drop a section that would be empty; never pad on
 | In short | Two to four plain sentences: what was tested, where (local, CI, by hand), and the gaps. Facts as `.fact-num`: criteria proven, tests added, CI result |
 | Criteria and evidence | One `.evidence` card per criterion, as in step 2, with its `.log` excerpts and `figure.shot` screenshots |
 | Test runs | A table of each command or CI job: result, duration, where it ran, and a link to the CI run or the saved output |
-| Manual checks | From `Verify by hand`: the steps, the observed result and the evidence file. Use `.steps` with a `data-storage-key` of `<key>-testing-<lang>` when a reader should repeat them |
+| Manual checks | From `Verify by hand`, or from the PR's test plan without a handoff: the steps, the observed result and the evidence file. A check without an evidence file says "no evidence". Use `.steps` with a `data-storage-key` of `<key>-testing-<lang>` when a reader should repeat them |
 | Gaps and risks | What was not tested and why, flaky or skipped tests by name, and sources that were missing |
 | Sources | The PR, the ticket, the CI runs and the evidence files read. The footer says which head SHA the links and runs come from |
 

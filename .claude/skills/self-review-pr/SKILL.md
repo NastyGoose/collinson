@@ -42,8 +42,9 @@ untouched. Collect:
 ## 2. Check: every area, every time
 
 Run the project's own reviewer skills or agents in parallel sub-agents for breadth (code review, test review, rules
-compliance, docs consistency — whatever the repo provides; otherwise one `/code-review` pass). Then do the areas
-below yourself. The sub-agents don't cover them. Areas A to C apply to deployed software; for a change with nothing
+compliance, docs consistency — whatever the repo provides; otherwise one `/code-review` pass). If the repo has an
+architect agent (for example `.claude/agents/architect.md`), run it in review mode on the PR as one of them. Put its
+structure and module-boundary findings into the notes like any other area's. Then do the areas below yourself. The sub-agents don't cover them. Areas A to C apply to deployed software; for a change with nothing
 to deploy, say so in the notes and skip them.
 
 **A. Rollout design: rollback first.** For each deploy, look at two moments: the roll (old and new builds run

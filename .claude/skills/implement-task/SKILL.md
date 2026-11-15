@@ -126,6 +126,10 @@ the PR: check that `.claude-tmp/` is ignored (`git check-ignore -q .claude-tmp`)
 `/.claude-tmp/` to `.git/info/exclude` rather than to the tracked `.gitignore`. Never `git add -f` anything under
 it, and never write task notes into the repo's tracked docs.
 
+If the repo has an architect agent (for example `.claude/agents/architect.md`) or structure rules, settle where
+each new file goes and what it is called before writing the tasks. Ask the agent in placement mode when unsure, and
+record its answer under `## Decisions`.
+
 Template — drop sections the score does not need, never drop `## Log`:
 
 ```markdown

@@ -129,3 +129,6 @@ folder.
 - Before marking it ready or requesting reviewers: `self-review-pr <KEY>` reviews it the way a reviewer would
   (rollout and rollback, cross-repo facts, docs the change makes wrong, PR text) and triages what it finds;
   `prepare-for-review <KEY>` works through the PR template's author checklist.
+- For reviewers: `changes-notes <KEY>` publishes a plain-language page of what changed and what it affects, and
+  `testing-notes <KEY>` publishes the acceptance criteria with their tests and evidence. Each offers a link line for
+  the PR description.
