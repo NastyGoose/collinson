@@ -163,6 +163,18 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - Every line logged during a GraphQL request carried the whole request, headers included, because pino-http binds it to the per-request logger even with access lines off. `quietReqLogger` keeps only the request id.
   - The same review found that `bufferLogs` does nothing in a Nest testing module, so the test apps no longer pass it.
 
+### 2026-11-16 — GraphQL Tools advisory (ARC-58)
+
+- **Finding:** `npm audit` reported one high advisory in the runtime tree. [GHSA-c4qx-w738-7hr3](https://github.com/advisories/GHSA-c4qx-w738-7hr3) is a prototype-pollution bug in `mergeIncrementalResult` that affects `@graphql-tools/utils` 10.10.1 to 12.0.1 and is fixed in 12.0.2. The lockfile held two copies. Apollo Server 5.5.2 brought in 12.0.1, the affected version, and `@nestjs/graphql` 14.2.1 brought in 12.1.0, which is patched. The application never calls `mergeIncrementalResult`, so the bug was a dependency exposure, not a demonstrated reachable path.
+- **Constraint:** no supported upgrade existed. 5.5.2 is Apollo Server's latest release, and it is the release that added the cap. [apollographql/apollo-server#8232](https://github.com/apollographql/apollo-server/pull/8232) holds `@graphql-tools/merge` below 9.2.5, `schema` below 10.1.2 and `utils` below 12.0.2. Those versions depend on `@whatwg-node/promise-helpers` 2, which requires Node 22.15 or later, and the cap keeps fresh installs on Node 20 working. Apollo plans to lift the cap in v6, which drops Node 20. That work is still a draft ([#8233](https://github.com/apollographql/apollo-server/pull/8233)). This project requires Node 24 (`engines`, CI), so the reason for the cap does not apply here.
+- **Decision:** a scoped npm `overrides` entry under `@apollo/server` sets `merge` 9.2.8, `schema` 10.1.5 and `utils` 12.1.0. These are the exact versions `@nestjs/graphql` already pins, so a single copy of each package remains, and it is a combination the app already ran. **Rejected:**
+  - downgrading to Apollo Server 5.5.1, which has no cap but is an older release;
+  - a global override, which is wider than needed;
+  - waiting for v6, which would leave a high advisory in place before release.
+- **Check:** after deleting `node_modules`, `npm ci` resolves one `@graphql-tools/utils`, at 12.1.0. `npm audit --omit=dev` reports 0 vulnerabilities. Format, lint, typecheck, `lint:structure`, build, unit (325), integration (43) and E2E (35) all pass. The built app answers the `health` example.
+- **Residual:** 20 low and moderate advisories (`glob`, `minimatch` and `deepmerge`), all in the Jest dev-only tree. The suggested fix is a semver-major downgrade of Jest, so they are accepted for this submission. `npm ls --all` also flags `chokidar` under the dev-only `@nestjs/cli`. That predates this change and shows up on `main` too.
+- **Removal:** delete the override once Apollo Server lifts the cap, or once `@nestjs/graphql` moves its own pins. Then run `npm ls @graphql-tools/utils` and `npm audit --omit=dev` again.
+
 ## Scope cuts
 
 - **Product:** no frontend, accounts, booking, resort, venue or beach lookup, personalized proficiency, historical analytics, alerts or hosted deployment. All were cut in the specifications.
