@@ -52,9 +52,9 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 - `pure-no-io-domains`: activity code never imports another domain's `.module`, `.service`, `.repository` or `.client` files. Calendar code imports nothing else from `src/` at all.
 - `no-upward-imports`: domains never import `activity-forecast` or `health`.
 - `infrastructure-no-domain`: infrastructure, including `health` and `calendar`, never imports a domain.
-- `no-domain-internals`: from another domain, import only its `.module`, `.service`, `.types`, `.constants` or `.errors` files. The `.logic` files of the pure `calendar` and `activity` folders are public and may be imported too.
+- `no-domain-internals`: from another domain, import only its `.module`, `.service`, `.types`, `.constants` or `.errors` files. The `.logic` files of the pure `calendar` and `activity` folders are public and may be imported too. The checker enforces only the forbidden half: another domain's `.repository`, `.client`, `.logic` and `.mapper` files. Follow the rest yourself.
 - `no-test-imports-in-src`: production code never imports from `test/`.
-- `no-spec-in-src`: no spec files under `src/`.
+- `no-spec-in-src` and `no-spec-in-src-orphan`: no spec files under `src/`.
 
 ## Until the refactor lands
 
