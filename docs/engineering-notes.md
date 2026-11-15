@@ -109,6 +109,12 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - a green job counted for a test it never ran;
   - redaction did not reach screenshots, headers or `changes-notes`;
   - the rules for combining a bundled criterion's verdicts contradicted the "partial" verdict.
+- **First real use:** both skills published pages for their own PR, 3 of 4 criteria proven and 1 by hand only. The testing page itself pointed out that the dry runs predate the review fixes, so it did not count them as proof of the final text. The self-review before merge then closed five small gaps that had been deferred:
+  - the page published second now adds its link to the companion page;
+  - the log block takes keyboard focus;
+  - the skills guide lists the new files;
+  - `task-explainer` keeps one `artifacts.md` line per page;
+  - two unwrapped lines are now wrapped.
 
 ## Scope cuts
 

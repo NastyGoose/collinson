@@ -470,7 +470,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       </div>
     </section>
 
-    <!-- guide: testing-notes "Criteria and evidence": one .evidence card per acceptance criterion. The verdict pill is pill-ok (proven), pill-warn (proven by hand only, or partial) or pill-bad (not proven). .evidence-method lists how it was checked. Each test link points at the spec at the head SHA, with the test name as the text. Use .log for a trimmed command output (the command and exit status in .log-cmd) and figure.shot for a screenshot (a downscaled data: URI with alt text and a caption). Drop the parts a card does not need. -->
+    <!-- guide: testing-notes "Criteria and evidence": one .evidence card per acceptance criterion. The verdict pill is pill-ok (proven), pill-warn (proven by hand only, or partial) or pill-bad (not proven). .evidence-method lists how it was checked. Each test link points at the spec at the head SHA, with the test name as the text. Use .log for a trimmed command output (the command and exit status in .log-cmd; keep tabindex="0" so the scroll area takes keyboard focus) and figure.shot for a screenshot (a downscaled data: URI with alt text and a caption). Drop the parts a card does not need. -->
     <section id="evidence" aria-labelledby="evidence-h">
       <h2 id="evidence-h">{{Criteria and evidence}}</h2>
       <div class="evidence-list">
@@ -481,7 +481,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
           </div>
           <ul class="evidence-method"><li>{{unit}}</li><li>{{E2E}}</li></ul>
           <ul class="evidence-tests"><li><a href="{{https://github.com/OWNER/REPO/blob/SHA/path.spec.ts#L10}}">{{test name}}</a> <span class="muted">{{path.spec.ts}}</span></li></ul>
-<pre class="log"><span class="log-cmd">$ {{command}} <span class="ok">· exit 0</span></span>{{trimmed output}}</pre>
+<pre class="log" tabindex="0"><span class="log-cmd">$ {{command}} <span class="ok">· exit 0</span></span>{{trimmed output}}</pre>
           <figure class="shot">
             <img src="{{data:image/png;base64,...}}" alt="{{what the screenshot shows}}" width="{{w}}" height="{{h}}">
             <figcaption>{{What to look at in the screenshot.}}</figcaption>

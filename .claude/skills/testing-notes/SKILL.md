@@ -172,6 +172,8 @@ Writing:
 - If this session offers a preview, take one look and fix what it shows. Do not loop.
 - Record the URL in `artifacts.md` as `testing-<lang>: <url> (<date>, <short sha>)`. Keep one line per kind and
   language: replace the existing line rather than adding another.
+- If the companion `changes-<lang>` page exists and does not link here yet, add this page's URL to its header meta
+  and republish it in place. Change nothing else on it.
 
 ## 6. Reply
 
