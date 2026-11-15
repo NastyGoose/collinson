@@ -183,7 +183,6 @@ describe('activity forecast scenarios (e2e)', () => {
   }
 
   beforeAll(async () => {
-    upstream = new FakeOpenMeteo();
     app = await startApp();
     prisma = app.get(PrismaService);
   });
