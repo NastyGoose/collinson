@@ -44,7 +44,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Review finding, fixed:** the normalized search text was used as the cache key, but the raw text was sent to the provider. Two spellings that share a key, such as one with the Kelvin sign `K`, could ask the provider different questions. The NFKC-lowercased text is now used for both.
 - **Decision:** an expired search is not served during a geocoding outage. SPEC-01 does not ask for it, and querying by stored ID is the outage path.
 - **AI review finding rejected:** a test reviewer called one normalization test "vacuous". The test literal did contain the combining character, so the test stayed, rewritten with an escape sequence to make that visible.
-- **Triage, implemented now:** purging expired searches. Purging inside the save transaction was rejected because two saves of different expired keys could deadlock. It runs after the commit with `SKIP LOCKED`, in batches of 100.
+- **Triage, implemented now:** purging expired searches. Purging inside the save transaction was rejected because two saves of different expired keys could deadlock. It runs after the commit with `SKIP LOCKED` and removes up to 100 expired searches per uncached search.
 
 ### 2026-11-14 — Forecasts (ARC-46, [#3](https://github.com/NastyGoose/collinson/pull/3))
 
@@ -78,6 +78,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Decision:** a shorter README. The ticket-by-ticket status text was replaced by a four-step overview and a list of assumptions and limits, and the detail stays in the ADRs. SPEC-05 asks for a short README.
 - **Decision:** the GraphQL examples are request files in `examples/`, so the README can be run as written in bash and PowerShell. The optional live smoke check (`npm run smoke:live`) sends the same files.
 - **Live check:** "Madrid, ES" returned five candidates. It became the ambiguity example, and its stored ID became the example of an inland city where surfing is unavailable.
+- **Self-review finding, fixed:** on a fresh database the by-ID example returned `LocationNotFound`, because an ID resolves only after a search has stored it. The clean-checkout run had passed only because it sent the Madrid search first. The README now says to send it first, and the smoke script states the order and fails on any example file it has no check for. The same review found three README sentences that overstated the code (the 2 MiB cap, `extensions.field`, the purge size), plus the same 2 MiB slip in an ADR 0003 amendment.
 - **Decision:** CI is one GitHub Actions job against a PostgreSQL service container. **Rejected:** one job per test tier, which would install dependencies three times for a small repository. The live smoke check is a manual workflow and never blocks a PR (SPEC-05).
 
 ## Scope cuts
