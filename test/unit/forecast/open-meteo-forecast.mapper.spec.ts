@@ -1,6 +1,7 @@
 import {
   atmosphericBody,
   clonePayload,
+  FIRST_HOUR,
   marineBody,
   PENICHE,
   WARSAW,
@@ -10,8 +11,6 @@ import { thrown } from '../../support/errors';
 import { SourceRefreshError } from '../../../src/forecast/forecast.errors';
 import { ATMOSPHERIC_SPEC, MARINE_SPEC } from '../../../src/forecast/forecast.constants';
 import { parseForecastResponse } from '../../../src/forecast/open-meteo-forecast.mapper';
-
-const FIRST_HOUR = '2026-11-14T00:00:00Z';
 
 function parseError(body: unknown, spec = ATMOSPHERIC_SPEC): SourceRefreshError {
   return thrown(() => parseForecastResponse(body, spec, PENICHE), SourceRefreshError);
@@ -77,7 +76,8 @@ describe('parseForecastResponse', () => {
     ['a timestamp beyond the Date range', (body) => withSeries(body, 'time', withLast(body, 9e12))],
     [
       'a timestamp off the minute',
-      (body) => withSeries(body, 'time', withLast(body, 1794614401 + 191 * 3600)),
+      (body) =>
+        withSeries(body, 'time', withLast(body, Date.parse(FIRST_HOUR) / 1000 + 191 * 3600 + 1)),
     ],
     ['a missing series', (body) => withSeries(body, 'precipitation', undefined)],
     [

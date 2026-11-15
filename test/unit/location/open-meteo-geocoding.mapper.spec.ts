@@ -11,7 +11,7 @@ import { thrown } from '../../support/errors';
 import { GeocodingUnavailableError } from '../../../src/location/location.errors';
 import { parseGeocodingResponse } from '../../../src/location/open-meteo-geocoding.mapper';
 
-function syncGeocodingError(run: () => unknown): GeocodingUnavailableError {
+function parseError(run: () => unknown): GeocodingUnavailableError {
   return thrown(run, GeocodingUnavailableError);
 }
 
@@ -28,13 +28,11 @@ describe('parseGeocodingResponse', () => {
     ['a null body', null],
     ['results that is not an array', { results: {} }],
   ])('rejects %s as an invalid payload', (_label, body) => {
-    expect(syncGeocodingError(() => parseGeocodingResponse(body, null)).kind).toBe(
-      'INVALID_PAYLOAD',
-    );
+    expect(parseError(() => parseGeocodingResponse(body, null)).kind).toBe('INVALID_PAYLOAD');
   });
 
   it('rejects the error envelope even on HTTP 200, keeping the reason out of the message', () => {
-    const error = syncGeocodingError(() => parseGeocodingResponse(PROVIDER_ERROR, null));
+    const error = parseError(() => parseGeocodingResponse(PROVIDER_ERROR, null));
 
     expect(error.kind).toBe('UPSTREAM_FAILURE');
     expect(error.message).toBe('Geocoding reported an error.');
@@ -68,9 +66,7 @@ describe('parseGeocodingResponse', () => {
       { ...SPRINGFIELD_IL, latitude: null },
     );
 
-    expect(syncGeocodingError(() => parseGeocodingResponse(body, null)).kind).toBe(
-      'UNUSABLE_RESULTS',
-    );
+    expect(parseError(() => parseGeocodingResponse(body, null)).kind).toBe('UNUSABLE_RESULTS');
   });
 
   it('keeps zero coordinates, which are valid', () => {
@@ -124,8 +120,6 @@ describe('parseGeocodingResponse', () => {
   it('fails when the provider ignored the country filter for every result', () => {
     const body = resultsBody(BERLIN_DE, SPRINGFIELD_IL);
 
-    expect(syncGeocodingError(() => parseGeocodingResponse(body, 'FR')).kind).toBe(
-      'UNUSABLE_RESULTS',
-    );
+    expect(parseError(() => parseGeocodingResponse(body, 'FR')).kind).toBe('UNUSABLE_RESULTS');
   });
 });
