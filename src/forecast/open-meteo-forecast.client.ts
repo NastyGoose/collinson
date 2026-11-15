@@ -8,8 +8,8 @@ import { forecastUrl, parseForecastResponse } from './open-meteo-forecast.mapper
 
 /**
  * Shared Open-Meteo forecast adapter: one bounded request (JsonRequestService),
- * then validation into a NormalizedForecast. Subclasses supply the source spec. Failures surface as
- * SourceRefreshError; nothing here reads or writes storage.
+ * then validation into a NormalizedForecast. Subclasses supply the source spec.
+ * Failures surface as SourceRefreshError; nothing here reads or writes storage.
  */
 export abstract class OpenMeteoForecastClient {
   abstract readonly spec: ForecastSourceSpec;
