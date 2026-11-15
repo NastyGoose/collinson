@@ -1,0 +1,88 @@
+# Engineering notes
+
+These are the dated working notes for the assessment. They record the questions that came up, the assumption chosen, the alternatives considered, what the AI contributed and where its suggestions were rejected or corrected. The entries are condensed from the notes kept while the work happened: the planning log, the per-ticket plan logs and review notes, the ADR amendments, the commits and the pull requests. Nothing was written after the fact to make the process look tidier.
+
+## How the work was done
+
+The author ran the project with Claude Code as the main pair. The AI drafted the specifications from the brief, wrote most of the code and tests, and reviewed its own pull requests. The author chose the framework, the database and the tracker, decided every scope question, approved or rejected the AI's proposals, and approved each merge.
+
+The delivery flow came from the Excalidraw process diagram supplied with the brief:
+
+1. Five specifications (SPEC-01 to SPEC-05) were written against the brief's requirements R1–R9 and reviewed.
+2. A marine-data spike (ARC-43) tested Open-Meteo before the design was fixed.
+3. The Technical Design set the GraphQL SDL, storage, refresh and scoring rules. The [ADRs](adr/README.md) record its main decisions.
+4. An Implementation Plan split the work into seven tickets, ARC-44 to ARC-50, each delivered as one PR.
+
+For every ticket the AI followed the [`implement-task`](../.claude/skills/implement-task/SKILL.md) skill. It scored the ticket and wrote a local plan with a decisions list and a log. It then implemented in small commits and ran parallel review sub-agents (spec, code and security, tests, docs). Their findings were triaged with the author before the PR was opened. Out-of-scope findings were never fixed silently: the author chose for each one between "implement now", "draft a ticket" and "drop".
+
+## Working log
+
+### 2026-11-13 — Specifications
+
+- **Question:** what does "rank the next seven days for each activity" mean? **Assumption:** rank the seven dates separately within each activity, with no comparison across activities. **Alternative:** one ranking of activity-day pairs for the whole week. **Reason:** this is the most direct reading of the brief.
+- **Question:** does "next seven days" include today? **Assumption:** tomorrow plus the six following dates, in the location's time zone, fixed at the start of the request. **Reason:** seven complete local days. A partial "today" would be compared against full days. The forecast request therefore asks for eight days.
+- **Question:** who is the score for? **Assumption:** a generic recreational visitor, scored on weather suitability only. Skiing does not mean resort or lift availability, and surfing does not mean beach access. This set what the explanations are allowed to claim.
+- **Question:** what happens with ambiguous place names? **Assumption:** return up to five candidates and let the caller pick one by stable ID. **Rejected:** silently picking one of the matches.
+- **Question:** how fresh must the data be? **Assumption:** reuse a snapshot for six hours, and fall back to one up to 24 hours old when a refresh fails, as long as it covers the requested dates.
+- **AI draft, changed by the author:** the first draft recommended SQLite as the simplest storage for a single-instance take-home and listed PostgreSQL as the alternative. The author chose **PostgreSQL with Prisma** ([ADR 0002](adr/0002-postgresql-prisma-persistence.md)). The draft is kept as [assessment-specifications.md](assessment-specifications.md).
+- **AI draft, changed in the Technical Design:** the draft proposed code-first GraphQL with an exported schema. The Technical Design published the exact SDL instead, so the implementation went schema-first (see 2026-11-14).
+- **Marine spike (ARC-43):** the first attempt to call the marine API was blocked by host resolution and browser access. A later browser run returned all four test locations. Inland Warsaw and Madrid got grid points within 5 km, a full set of timestamps and **wave arrays that were entirely null**. "The response has data" therefore does not mean "the place has surf". Surfing now needs usable wave values plus a grid point within 25 km. The four samples do not calibrate the 25 km cap, and [ADR 0004](adr/0004-marine-data-eligibility.md) records it as an assumption.
+
+### 2026-11-14 — Baseline (ARC-44, [#1](https://github.com/NastyGoose/collinson/pull/1))
+
+- Before pinning dependencies the AI checked the current npm releases. Nest 12 ships as ESM only. Apollo Server 5 needs graphql 16. The `prisma` `latest` tag pointed at a v8 release candidate, so Prisma 7.10.1 stable was pinned instead.
+- **AI correction:** the AI first installed ESLint and plain Jest. After reading Nest 12's own TypeScript template it switched to oxlint and to Jest with `--experimental-vm-modules`, matching the framework's defaults.
+- **Decision:** schema-first GraphQL, because the Technical Design publishes the SDL and code-first would turn the contract into a generated artefact. A `health` query was added as the smallest proof that the endpoint works.
+- **Decision:** each integration or E2E run creates its own `collinson_test_*` database, applies the checked-in migrations and drops it afterwards. **Rejected:** `prisma migrate reset` on a fixed test database, which is destructive and shared between parallel runs.
+- **Blocker:** the machine had no Docker. The AI tried to run a throwaway PostgreSQL binary from npm, and its permission guard blocked it. Database checks waited until the author installed Docker Desktop. The README flow then passed in the workspace and in a clean copy.
+- **Found before committing:** Git on the machine checks files out with CRLF line endings, and Prisma checksums each `migration.sql`, so two platforms would disagree about the same migration. Nest's template `.gitattributes` (LF everywhere) was adopted and checked with a real clone.
+
+### 2026-11-14 — Locations (ARC-45, [#2](https://github.com/NastyGoose/collinson/pull/2))
+
+- **Decision:** a location ID that is not a positive integer returns `LocationNotFound` without a database read, rather than `BAD_USER_INPUT`. IDs are opaque to clients.
+- **Decision:** the provider is asked for ten records and the first five valid, distinct ones are kept, so one bad record does not push a real fifth candidate out.
+- **Review finding, fixed:** the normalized search text was used as the cache key, but the raw text was sent to the provider. Two spellings that share a key, such as one with the Kelvin sign `K`, could ask the provider different questions. The NFKC-lowercased text is now used for both.
+- **Decision:** an expired search is not served during a geocoding outage. SPEC-01 does not ask for it, and querying by stored ID is the outage path.
+- **AI review finding rejected:** a test reviewer called one normalization test "vacuous". The test literal did contain the combining character, so the test stayed, rewritten with an escape sequence to make that visible.
+- **Triage, implemented now:** purging expired searches. Purging inside the save transaction was rejected because two saves of different expired keys could deadlock. It runs after the commit with `SKIP LOCKED`, in batches of 100.
+
+### 2026-11-14 — Forecasts (ARC-46, [#3](https://github.com/NastyGoose/collinson/pull/3))
+
+- **Decision:** coverage means exactly one timestamp at each required local hour (09:00–18:00 atmospheric, 09:00–17:00 marine) on all seven dates. It is checked separately from whether measurements are null.
+- **Change of mind, recorded in [ADR 0003](adr/0003-local-window-and-forecast-refresh.md):** timeouts became retryable once, to match geocoding. The "follow-up refresh" for a waiter that joined a refresh for another date window now applies only when that refresh succeeded or failed on coverage. A rate limit or timeout is not fixed by asking again for a different window.
+- **Review findings, fixed:** a race where a caller whose read predated a just-finished refresh would fetch again (the shared refresh now re-reads the row first), and a snapshot with a future `fetched_at` that counted as fresh.
+- **Triage, implemented now:** one shared, bounded Open-Meteo request helper for geocoding and both forecast sources, with a 2 MiB response cap. A real-socket probe in self-review found that a 5xx error page over 2 MiB became a non-retried invalid payload. The status is now checked before the size cap.
+
+### 2026-11-14 — Scoring (ARC-47, [#4](https://github.com/NastyGoose/collinson/pull/4))
+
+- **Decision:** precipitation is summed from 10:00 to 18:00 because each Open-Meteo value covers the hour before its timestamp. The other fields use 09:00–17:00.
+- **Decision:** before rounding half up, scores are trimmed to nine decimals, so a float error such as 89.4999999999 rounds as 89.5.
+- **Review finding, fixed:** a near-ideal day whose losses rounded away to 100 was described as "every factor is ideal". The text now says "close to ideal" unless every factor really is ideal. A mean snow depth of 0.0011 m printed as `0.00 m`, so snow depth now has three decimals.
+- **Kept after review:** atmospheric coverage is required over the whole 09:00–18:00 window, even for an activity that does not use precipitation.
+
+### 2026-11-15 — GraphQL contract (ARC-48, [#5](https://github.com/NastyGoose/collinson/pull/5))
+
+- **AI correction:** the first version rethrew domain errors as `GraphQLError` from the resolver. The first E2E run showed Nest logging every `BAD_USER_INPUT` as a server error with a stack. Mapping moved to an exception filter.
+- **Review finding, fixed:** `formatError` let through any error that carried its own code. A probe showed a Prisma `P2002` passing through with its raw SQL message. Only documented and Apollo request codes are now passed through, and everything else becomes `INTERNAL_SERVER_ERROR` ([ADR 0001](adr/0001-nestjs-graphql-backend.md) amendment).
+- **Live check:** the README example "Peniche, PT" turned out to be ambiguous (two candidates), so the example was changed.
+- **Triage, drafted as tickets:** four follow-ups (stale and partial examples in the README, bounding Apollo's echo of invalid variables, stripping bidi characters from `LocationNotFound` messages, a fixed malformed-JSON message). The first was folded into ARC-50. The other three are listed under known gaps below.
+
+### 2026-11-15 — Scenario matrix (ARC-49, [#6](https://github.com/NastyGoose/collinson/pull/6))
+
+- Every Implementation Plan E2E scenario except reproducible delivery got a GraphQL test against a fake Open-Meteo: midnight and DST, cold, warm and restart reuse, stale fallback, invalid replacements, partial and failed sources. All passed on the first run.
+- **Check on the tests:** to show the scenarios could catch real defects, five deliberate breaks were made in `src/` and then reverted. They were: the date window taken after location resolution, no follow-up refresh, no coalescing, an exclusive 24-hour limit, and sampling in UTC. Each one failed at least one scenario.
+- **Review finding, fixed:** the PR description said "eight runs in a row", but only four of those runs were at the final commit. It was corrected to the runs that actually happened.
+
+### 2026-11-15 — Submission readiness (ARC-50)
+
+- **Decision:** a shorter README. The ticket-by-ticket status text was replaced by a four-step overview and a list of assumptions and limits, and the detail stays in the ADRs. SPEC-05 asks for a short README.
+- **Decision:** the GraphQL examples are request files in `examples/`, so the README can be run as written in bash and PowerShell. The optional live smoke check (`npm run smoke:live`) sends the same files.
+- **Live check:** "Madrid, ES" returned five candidates. It became the ambiguity example, and its stored ID became the example of an inland city where surfing is unavailable.
+- **Decision:** CI is one GitHub Actions job against a PostgreSQL service container. **Rejected:** one job per test tier, which would install dependencies three times for a small repository. The live smoke check is a manual workflow and never blocks a PR (SPEC-05).
+
+## Scope cuts
+
+- **Product:** no frontend, accounts, booking, resort, venue or beach lookup, personalized proficiency, historical analytics, alerts or hosted deployment. All were cut in the specifications.
+- **Infrastructure:** refreshes are merged only within one process. Merging them across processes would need a lock or a queue, which was not needed for a single local instance. No background refresh worker: weather is refreshed when a request needs it.
+- **Calibration:** the scoring formulas and the 25 km marine cap are illustrative v1 assumptions. They are versioned (`scoringVersion`) so they can change without breaking the stored snapshots.
+- **Deferred hardening (drafted, not built):** bounding Apollo's echo of invalid variable values, stripping invisible format characters from `LocationNotFound` messages, and a fixed message for malformed JSON bodies. None of these leaks secrets.
