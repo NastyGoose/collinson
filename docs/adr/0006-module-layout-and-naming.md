@@ -29,7 +29,7 @@ This record fixes the target structure before the refactor that applies it, so t
 | `.logic` | Pure domain functions with no dependency injection and no I/O |
 | `.types` | Types and interfaces only |
 | `.constants` | Constant values only |
-| `.errors` | Error classes and error codes |
+| `.errors` | Error classes, error codes and error classification |
 | `.filter` | Nest exception filters |
 | `.graphql` | Schema-first SDL |
 
@@ -60,6 +60,6 @@ The refactor that applies this record is [ARC-54](https://linear.app/archiview/i
 - [ARC-56](https://linear.app/archiview/issue/ARC-56/dev-apply-the-adr-0006-module-layout-and-remove-the-structure-baseline) moved the unit specs to `test/unit/`, added `src/calendar/`, renamed the domain folders and their classes to the singular, and named and split the files by role. The known-violations baseline that CI used while the old layout stood is deleted; `lint:structure` now fails on any violation.
 - [ARC-57](https://linear.app/archiview/issue/ARC-57/dev-use-the-shared-nestjs-pino-logger-by-injection) adds `src/logger/` and `nestjs-pino`, injects the logger and turns `src/http/json-request.ts` into an injectable service. Until it lands, classes still construct `new Logger`.
 
-Two placements the rules above do not name: `isStorageFailure`, which classifies Prisma error codes, lives in `prisma.errors.ts`, because a `.logic` name would make the repositories' import a forbidden cross-folder one. The scoring v1 formulas are `activity-formula.logic.ts`, so that `activity-scoring.logic.ts` stays the folder's public entry point.
+`src/app.module.ts` and `src/main.ts` are the composition root. They may import any folder's wiring, including the `formatError` mapper and `config.logic.ts`, and the checker does not cover them. Two placements the rules above do not name: `isStorageFailure`, which classifies Prisma error codes, lives in `prisma.errors.ts`, because a `.logic` name would make the repositories' import a forbidden cross-folder one. The scoring v1 formulas are `activity-formula.logic.ts`, so that `activity-scoring.logic.ts` stays the folder's public entry point.
 
 [ADR 0001](0001-nestjs-graphql-backend.md) · [ADR 0003](0003-local-window-and-forecast-refresh.md) · [ADR 0005](0005-deterministic-activity-scoring.md) · [ARC-52](https://linear.app/archiview/issue/ARC-52/dev-record-structure-rules-and-add-an-architect-agent-with-a-ci)

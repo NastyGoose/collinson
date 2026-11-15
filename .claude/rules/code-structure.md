@@ -28,7 +28,7 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 - `.logic`: pure functions, with no dependency injection and no I/O
 - `.types`: types and interfaces only
 - `.constants`: values only
-- `.errors`: error classes and codes
+- `.errors`: error classes, error codes and error classification
 - `.filter`: Nest exception filters
 - `.graphql`: SDL
 

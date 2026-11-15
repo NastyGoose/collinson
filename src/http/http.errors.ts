@@ -1,4 +1,6 @@
-import type { UpstreamFailureKind } from './http.types';
+/** Why an upstream JSON request failed, before an adapter maps it to its own error. */
+export type UpstreamFailureKind =
+  'TIMEOUT' | 'NETWORK' | 'RATE_LIMITED' | 'HTTP_ERROR' | 'INVALID_JSON' | 'TOO_LARGE';
 
 /**
  * A failed upstream request. `message` is client-facing and carries no provider

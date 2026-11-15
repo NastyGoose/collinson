@@ -82,7 +82,7 @@ module.exports = {
       name: 'no-test-imports-in-src',
       comment: 'ADR 0006: production code never imports from test/.',
       severity: 'error',
-      from: { path: '^src/', pathNot: '[.]spec[.]ts$' },
+      from: { path: '^src/' },
       to: { path: '^test/' },
     },
     {
