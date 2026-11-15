@@ -1,0 +1,9 @@
+{
+  "query": "query Forecast($input: ForecastInput!) {\n  activityForecast(input: $input) {\n    __typename\n    ... on ActivityForecast {\n      location { id name region country latitude longitude timezone }\n      startDate\n      endDate\n      scoringVersion\n      activities {\n        activity\n        days { date availability score rank reason unavailableCode }\n      }\n      sources { source freshness fetchedAt failureCode reason }\n      attribution\n    }\n    ... on AmbiguousLocation {\n      candidates { id name region country timezone }\n    }\n    ... on LocationNotFound {\n      message\n    }\n  }\n}\n",
+  "variables": {
+    "input": {
+      "city": "Nazaré",
+      "countryCode": "PT"
+    }
+  }
+}
