@@ -1,0 +1,96 @@
+# Deterministic checks for every push and pull request. Tests use a fixed clock
+# and a fake Open-Meteo, so nothing here calls the real providers.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: collinson
+          POSTGRES_PASSWORD: collinson
+          POSTGRES_DB: collinson
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collinson -d collinson"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      # The same local-only values as .env.example.
+      DATABASE_URL: postgresql://collinson:collinson@localhost:5432/collinson
+      TEST_DATABASE_ADMIN_URL: postgresql://collinson:collinson@localhost:5432/postgres
+      PORT: 3000
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies (also generates the Prisma Client)
+        run: npm ci
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Each tier creates its own collinson_test_* database from the checked-in
+      # migrations and drops it afterwards.
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Build
+        run: npm run build
+
+      # The README path: migrate an empty database, start the built app and ask
+      # for health. Needs no network beyond the local PostgreSQL.
+      - name: Migrate and boot
+        run: |
+          npm run db:migrate
+          npm run db:status
+          node dist/main > app.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -sf http://localhost:3000/graphql -H 'content-type: application/json' \
+                --data-binary @examples/health.json -o health.json; then
+              break
+            fi
+            sleep 1
+          done
+          cat health.json
+          grep -q '"service":"UP","database":"UP"' health.json
+
+      - name: App log
+        if: always()
+        run: cat app.log || true

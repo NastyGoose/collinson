@@ -1,0 +1,7 @@
+{
+  "query": "query Locations($city: String!, $countryCode: String) {\n  locations(city: $city, countryCode: $countryCode) {\n    id\n    name\n    region\n    country\n    latitude\n    longitude\n    timezone\n  }\n}\n",
+  "variables": {
+    "city": "Springfield",
+    "countryCode": "US"
+  }
+}
