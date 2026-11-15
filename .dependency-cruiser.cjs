@@ -97,8 +97,9 @@ module.exports = {
     },
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
-    exclude: { path: '^src/generated/' },
+    // Not followed rather than excluded, so imports *of* the generated Prisma
+    // client still reach the purity rules.
+    doNotFollow: { path: ['node_modules', '^src/generated/'] },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: 'tsconfig.json' },
     moduleSystems: ['es6', 'cjs'],

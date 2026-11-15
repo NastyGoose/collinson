@@ -42,6 +42,9 @@ agreed structure. You report findings and give fixes. You never change anything.
    - Audit: `npx depcruise src test --config .dependency-cruiser.cjs --output-type err` for everything, including
      known violations, then `npm run lint:structure` for new violations only.
    - Review: `npm run lint:structure` only.
+   - The checker reads the checked-out working tree. If you are reviewing another branch or a PR that is not
+     checked out, do not run it. Judge the boundaries from the diff instead, and say in the verdict line that the
+     checker was not run on that change.
 2. Build the folder-level dependency map from the imports (`grep -rn "from '\.\./" src`). Ignore `src/generated`.
 3. Check what the checker cannot see:
    - **File roles.** The name has no role postfix, or the content does not match the role. Examples: runtime code in

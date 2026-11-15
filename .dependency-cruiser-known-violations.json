@@ -1033,6 +1033,20 @@
   {
     "type": "dependency",
     "from": "src/locations/locations.repository.spec.ts",
+    "to": "src/generated/prisma/client.ts",
+    "unresolvedTo": "../generated/prisma/client",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-spec-in-src"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/locations/locations.repository.spec.ts",
     "to": "src/locations/location.errors.ts",
     "unresolvedTo": "./location.errors",
     "dependencyTypes": [

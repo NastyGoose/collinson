@@ -44,7 +44,7 @@ Examples: `forecast.service.ts`, `forecast.constants.ts` for the freshness limit
 **Module boundaries.**
 
 - No circular dependencies.
-- `activity` and `calendar` are pure. They import no `prisma`, `http`, `generated`, `logger`, `clock` or `config` code, no `@nestjs/*` or `@prisma/*` package and no Node.js core module. They also never import another domain's `.module`, `.service`, `.repository` or `.client` files. They may import its `.types`, `.constants` and `.errors` files.
+- `activity` and `calendar` are pure. They import no `prisma`, `http`, `generated`, `logger`, `clock` or `config` code, no `@nestjs/*` or `@prisma/*` package and no Node.js core module. `calendar` imports nothing else from `src/`. `activity` never imports another domain's `.module`, `.service`, `.repository` or `.client` files; it may import that domain's `.types`, `.constants` and `.errors` files, and the calendar.
 - Lower layers never import upward. `location`, `forecast` and `activity` never import `activity-forecast` or `health`. Infrastructure folders, including `health` and `calendar`, never import domain folders.
 - A module may use another domain's `.module`, `.service`, `.types`, `.constants` and `.errors` files. It never imports another domain's `.repository`, `.client`, `.logic` or `.mapper` files. The exceptions are the pure `calendar` and `activity` folders: they cannot offer a Nest service, so their `.logic` files are their public API. The resolver calls `activity-scoring.logic.ts`, and every module may use the calendar's logic.
 - Production code never imports from `test/`.
@@ -60,7 +60,7 @@ The code does not follow this record yet. A separate refactor ticket moves the f
 - `.dependency-cruiser-known-violations.json` lists the existing violations. CI fails only on new ones. The refactor empties and deletes the file.
 - The checker's rules name today's folders: `locations`, `forecasts` and `activities`. The refactor renames them in the rules in the same change.
 - The unit Jest config reads both `src` and `test/unit`, so new unit specs go to `test/unit/` already. The refactor drops `src`.
-- Only `.repository` and `.client` files exist among the role names the cross-domain rule forbids. The rule covers `.logic` and `.mapper` files once the refactor names files by role.
+- Of the role names the cross-domain rule forbids, only `.repository`, `.client` and `activity-forecast.mapper.ts` exist today. The rule covers `.logic` files, and the other domains' mappers, once the refactor names files by role. Until then, role-less files such as `forecast-window.ts` pass the checker.
 
 The refactor touches the import paths of every unit spec and the logger spies in tests. The README's layout section and CLAUDE.md change with it.
 
