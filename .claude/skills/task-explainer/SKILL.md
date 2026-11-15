@@ -119,7 +119,8 @@ Writing:
   and `--new` is not set, `Artifact` `action: "read"` that URL, then publish with `url` to update it in place.
   Otherwise publish a new artifact with `icon: "map"` and a one-sentence `description`.
 - If this session offers a preview, take one look and fix what it shows. Do not loop.
-- Record the URL in `artifacts.md` as `explainer-<lang>: <url> (<date>)`.
+- Record the URL in `artifacts.md` as `explainer-<lang>: <url> (<date>)`. Keep one line per kind and language:
+  replace the existing line rather than adding another.
 
 ## 7. Reply
 

@@ -66,13 +66,16 @@ Putting these facts in the project's `CLAUDE.md` saves every skill from rediscov
 ## Local task folder
 
 All working files live in `.claude-tmp/tasks/<KEY>/` inside the repo and are never committed: the plan and work log
-(`<KEY>.md`), the handoff (`<KEY>.handoff.md`), ticket drafts (`<KEY>.follow-ups.md`), review notes, `evidence/` and
-the links to published pages (`artifacts.md`). `implement-task` makes sure the folder is ignored through
-`.git/info/exclude`, and `task-cleanup` checks that nothing from it leaked into a PR.
+(`<KEY>.md`), the handoff (`<KEY>.handoff.md`), ticket drafts (`<KEY>.follow-ups.md`), review notes, `evidence/`
+(with `evidence/runs/` for `testing-notes --rerun` output), the local copies of published pages
+(`<KEY>.changes.html`, `<KEY>.testing.html`) and the links to published pages (`artifacts.md`). `implement-task`
+makes sure the folder is ignored through `.git/info/exclude`, and `task-cleanup` checks that nothing from it leaked
+into a PR.
 
 ## Optional pieces
 
 Some steps use tools a session may not have and are skipped without them: a design tool connector (design
 comparison), browser automation (`verify-handoff`), a chat connector (`resume-task`), and the Artifact tool
-(`task-explainer`, `changes-notes`, `testing-notes`). Where a project has its own reviewer, test-review, rules or docs skills, the
-skills here call those; otherwise they fall back to the built-in `code-review` and `security-review`.
+(`task-explainer`, `changes-notes`, `testing-notes`). Where a project has its own reviewer, test-review, rules or
+docs skills, the skills here call those; otherwise they fall back to the built-in `code-review` and
+`security-review`.
