@@ -2,7 +2,7 @@ import { UseFilters } from '@nestjs/common';
 import { Args, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import { scoreActivities } from '../activities/activity-scoring';
 import { Clock } from '../clock/clock';
-import { forecastWindow } from '../forecasts/forecast-window';
+import { forecastWindow } from '../calendar/calendar.logic';
 import { ForecastsService } from '../forecasts/forecasts.service';
 import type { Location } from '../locations/location';
 import type { LocationSelectorInput } from '../locations/location-input';

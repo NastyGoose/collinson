@@ -1,23 +1,5 @@
-/** Number of local dates ranked per activity: tomorrow and the six after it. */
-export const FORECAST_DATE_COUNT = 7;
-
-/**
- * The seven local calendar dates a request ranks, frozen from the request instant
- * in the location's IANA time zone (ADR 0003).
- */
-export interface ForecastWindow {
-  timezone: string;
-  /** ISO local dates (YYYY-MM-DD), ascending, starting tomorrow. */
-  dates: string[];
-}
-
-/** A local wall-clock reading of an instant. */
-export interface LocalDateTime {
-  date: string;
-  hour: number;
-  minute: number;
-  second: number;
-}
+import { FORECAST_DATE_COUNT } from './calendar.constants';
+import type { Coverage, ForecastWindow, LocalDateTime } from './calendar.types';
 
 /** Derives tomorrow and the following six dates in `timezone` for the request instant. */
 export function forecastWindow(requestedAt: Date, timezone: string): ForecastWindow {
@@ -33,8 +15,6 @@ export function forecastWindow(requestedAt: Date, timezone: string): ForecastWin
 export function sameWindow(a: ForecastWindow, b: ForecastWindow): boolean {
   return a.timezone === b.timezone && a.dates.join() === b.dates.join();
 }
-
-export type Coverage = { complete: true } | { complete: false; missing: string[] };
 
 /**
  * Checks that `times` (Unix seconds) holds exactly one instant at each required

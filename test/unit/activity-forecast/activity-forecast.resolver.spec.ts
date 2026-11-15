@@ -2,7 +2,8 @@ import { PENICHE } from '../../fixtures/open-meteo-weather';
 import { atmosphericForecast, marineForecast } from '../../fixtures/scoring-weather';
 import { FixedClock } from '../../support/fixed-clock';
 import { ForecastStorageUnavailableError } from '../../../src/forecasts/forecast.errors';
-import { forecastWindow, type ForecastWindow } from '../../../src/forecasts/forecast-window';
+import { forecastWindow } from '../../../src/calendar/calendar.logic';
+import type { ForecastWindow } from '../../../src/calendar/calendar.types';
 import type {
   ForecastsService,
   ForecastWeather,

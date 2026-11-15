@@ -8,7 +8,7 @@ import {
   withoutInstant,
   type WeatherOverrides,
 } from '../../fixtures/scoring-weather';
-import { forecastWindow } from '../../../src/forecasts/forecast-window';
+import { forecastWindow } from '../../../src/calendar/calendar.logic';
 import type { NormalizedForecast } from '../../../src/forecasts/weather-source';
 import type { Activity, ActivityScores, RankedDay } from '../../../src/activities/activity';
 import { scoreActivities } from '../../../src/activities/activity-scoring';

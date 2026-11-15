@@ -9,7 +9,7 @@ import {
   ForecastStorageUnavailableError,
   SourceRefreshError,
 } from '../../../src/forecasts/forecast.errors';
-import { forecastWindow } from '../../../src/forecasts/forecast-window';
+import { forecastWindow } from '../../../src/calendar/calendar.logic';
 import { ForecastsRepository } from '../../../src/forecasts/forecasts.repository';
 import {
   FRESH_FOR_MS,

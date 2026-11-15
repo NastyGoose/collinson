@@ -4,7 +4,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { Clock } from '../../src/clock/clock';
 import { ClockModule } from '../../src/clock/clock.module';
 import { validateEnv } from '../../src/config/env';
-import { forecastWindow } from '../../src/forecasts/forecast-window';
+import { forecastWindow } from '../../src/calendar/calendar.logic';
 import { ForecastsModule } from '../../src/forecasts/forecasts.module';
 import { ForecastsRepository } from '../../src/forecasts/forecasts.repository';
 import { ForecastsService, type ForecastWeather } from '../../src/forecasts/forecasts.service';
