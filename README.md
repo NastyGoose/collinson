@@ -134,7 +134,7 @@ Weather and location data come from [Open-Meteo](https://open-meteo.com/) under 
 ```bash
 npm test                   # unit tests, no database
 npm run test:integration   # migrations, location and forecast persistence against a fresh PostgreSQL database
-npm run test:e2e           # the GraphQL contract over HTTP, with fixture Open-Meteo answers, against a fresh PostgreSQL database
+npm run test:e2e           # the GraphQL contract and acceptance scenarios over HTTP, with a fixed clock and fixture Open-Meteo answers, against a fresh PostgreSQL database
 npm run typecheck
 npm run lint
 npm run format:check
