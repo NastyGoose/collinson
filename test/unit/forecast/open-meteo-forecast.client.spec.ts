@@ -1,5 +1,11 @@
 import { Logger } from '@nestjs/common';
-import { atmosphericBody, marineBody, PENICHE, WARSAW } from '../../fixtures/open-meteo-weather';
+import {
+  atmosphericBody,
+  FIRST_HOUR,
+  marineBody,
+  PENICHE,
+  WARSAW,
+} from '../../fixtures/open-meteo-weather';
 import { rejected } from '../../support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../support/fixture-fetch';
 import { MAX_RESPONSE_BYTES } from '../../../src/http/http.constants';
@@ -10,8 +16,6 @@ import {
 } from '../../../src/forecast/forecast.constants';
 import { OpenMeteoAtmosphericClient } from '../../../src/forecast/open-meteo-atmospheric.client';
 import { OpenMeteoMarineClient } from '../../../src/forecast/open-meteo-marine.client';
-
-const FIRST_HOUR = '2026-11-14T00:00:00Z';
 
 function refreshError(promise: Promise<unknown>): Promise<SourceRefreshError> {
   return rejected(promise, SourceRefreshError);

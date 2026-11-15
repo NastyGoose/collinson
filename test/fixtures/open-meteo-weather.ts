@@ -7,6 +7,9 @@ import type { Location } from '../../src/location/location.types';
 
 const HOUR_S = 60 * 60;
 
+/** The first hourly instant of the controlled payloads: local midnight in Peniche, 2026-11-14. */
+export const FIRST_HOUR = '2026-11-14T00:00:00Z';
+
 /** Europe/Lisbon is UTC+0 in November, so local and UTC hours coincide. */
 export const PENICHE: Location = {
   id: '2264508',

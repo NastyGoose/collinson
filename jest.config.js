@@ -4,8 +4,9 @@
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
-  roots: ['<rootDir>/test/unit'],
-  testRegex: '.*\\.spec\\.ts$',
+  // src stays a root so the coverage report lists files that no test loads.
+  roots: ['<rootDir>/src', '<rootDir>/test/unit'],
+  testMatch: ['<rootDir>/test/unit/**/*.spec.ts'],
   transform: { '^.+\\.(t|j)s$': 'ts-jest' },
   // The generated Prisma Client imports its sibling .ts files with .js
   // extensions (Node ESM style); resolve them to the sources under ts-jest.
