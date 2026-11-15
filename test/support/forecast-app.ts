@@ -93,9 +93,9 @@ export interface SourceStatusBody {
 }
 
 /**
- * An `activityForecast` result as FORECAST_QUERY selects it. Each member's fields
- * are optional because `__typename` decides which are present; a type alias, not
- * an interface, so it stays assignable to Record<string, unknown>.
+ * An `activityForecast` result as FORECAST_QUERY selects it. Every field but
+ * `__typename` is optional because the result type decides which are present; a
+ * type alias, not an interface, so it stays assignable to Record<string, unknown>.
  */
 export type ForecastBody = {
   __typename: 'ActivityForecast' | 'AmbiguousLocation' | 'LocationNotFound';

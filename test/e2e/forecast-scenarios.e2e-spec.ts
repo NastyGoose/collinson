@@ -38,7 +38,7 @@ import { callsSettled } from '../support/settled';
 
 const NOON = '2026-11-14T12:00:00.000Z';
 const HOUR_MS = 60 * 60 * 1000;
-/** Tomorrow and the six dates after it, for a request on 14 November in Europe or America. */
+/** Tomorrow and the six dates after it for the 14 November requests in Lisbon, Chicago and, before midnight, Warsaw. */
 const WINDOW = [
   '2026-11-15',
   '2026-11-16',
@@ -533,6 +533,41 @@ describe('activity forecast scenarios (e2e)', () => {
 
       expect(again).toEqual(result);
       expect(upstream.calls.marine).toBe(1);
+    });
+
+    it('leaves only the date with a missing wave sample unavailable for surfing', async () => {
+      upstream.marine = () => {
+        const body = marineBody({ firstHour: PENICHE_TODAY });
+        // 12:00 on the 18th, Lisbon time (UTC+0 in November).
+        const index = hourlyTimes(PENICHE_TODAY).indexOf(Date.parse('2026-11-18T12:00:00Z') / 1000);
+        body.hourly.wave_period[index] = null;
+        return jsonResponse(body);
+      };
+
+      const result = await forecast({ city: 'Peniche' });
+
+      expect(result.sources?.[1]).toMatchObject({ source: 'MARINE', freshness: 'FRESH' });
+      const surfing = ranking(result, 'SURFING');
+      expect(surfing.map((day) => [day.date, day.rank])).toEqual([
+        ['2026-11-15', 1],
+        ['2026-11-16', 2],
+        ['2026-11-17', 3],
+        ['2026-11-19', 4],
+        ['2026-11-20', 5],
+        ['2026-11-21', 6],
+        ['2026-11-18', null],
+      ]);
+      expect(surfing[6]).toEqual({
+        date: '2026-11-18',
+        availability: 'UNAVAILABLE',
+        score: null,
+        rank: null,
+        reason: 'Missing usable wave period (12:00), so surfing cannot be scored.',
+        unavailableCode: 'MISSING_MARINE_INPUTS',
+      });
+      for (const activity of ATMOSPHERIC_ACTIVITIES) {
+        expectAvailable(ranking(result, activity));
+      }
     });
 
     it('leaves surfing unavailable when complete waves come from a grid point over 25 km away', async () => {

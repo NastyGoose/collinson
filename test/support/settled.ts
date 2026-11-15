@@ -2,7 +2,7 @@
 const SETTLE_DEADLINE_MS = 2_000;
 
 /**
- * Waits until `spy` has been called `count` times and every call has settled, then
+ * Waits until `spy` has been called at least `count` times and every call has settled, then
  * one more macrotask, so the callers have moved past their reads. Concurrency
  * tests use it to hold a fetch until every caller has reached a shared refresh.
  * Fails with the counts when the calls do not arrive, instead of a bare timeout.
