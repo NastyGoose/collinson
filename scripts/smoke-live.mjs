@@ -5,13 +5,14 @@
 // Usage: npm run start (or node dist/main), then in another terminal
 //   npm run smoke:live                 # http://localhost:3000/graphql
 //   SMOKE_URL=http://host:port/graphql npm run smoke:live
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 
 const endpoint = process.env.SMOKE_URL ?? 'http://localhost:3000/graphql';
+const examplesDir = new URL('../examples/', import.meta.url);
 const ACTIVITIES = ['SKIING', 'SURFING', 'OUTDOOR_SIGHTSEEING', 'INDOOR_SIGHTSEEING'];
 
 async function post(example) {
-  const body = await readFile(new URL(`../examples/${example}.json`, import.meta.url));
+  const body = await readFile(new URL(`${example}.json`, examplesDir));
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -56,7 +57,11 @@ function checkForecast(forecast) {
   return `${forecast.location.name} ${forecast.startDate}..${forecast.endDate}, sources ${atmospheric.freshness}/${marine.freshness}, best outdoor day ${outdoor.days[0].date} (${outdoor.days[0].score})`;
 }
 
-/** One check per request body in examples/, keyed by file name. */
+/**
+ * One check per request body in examples/, keyed by file name and run in this order.
+ * forecast-ambiguous must run before forecast-by-id: a location ID resolves only once
+ * a search has stored it, and the Madrid search stores 3117735 on a fresh database.
+ */
 const checks = {
   health: ({ health }) => {
     assert(health.service === 'UP' && health.database === 'UP', `health ${JSON.stringify(health)}`);
@@ -82,6 +87,14 @@ const checks = {
 };
 
 let failed = 0;
+const unchecked = (await readdir(examplesDir))
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => file.slice(0, -'.json'.length))
+  .filter((example) => !Object.hasOwn(checks, example));
+for (const example of unchecked) {
+  failed += 1;
+  console.log(`FAIL ${example}: no check for examples/${example}.json in scripts/smoke-live.mjs`);
+}
 for (const [example, check] of Object.entries(checks)) {
   try {
     console.log(`ok   ${example}: ${check(await post(example))}`);
@@ -93,6 +106,6 @@ for (const [example, check] of Object.entries(checks)) {
 console.log(
   failed === 0
     ? `All ${Object.keys(checks).length} live checks passed against ${endpoint}.`
-    : `${failed} of ${Object.keys(checks).length} live checks failed.`,
+    : `${failed} live check(s) failed.`,
 );
 process.exitCode = failed === 0 ? 0 : 1;
