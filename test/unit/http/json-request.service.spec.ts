@@ -1,6 +1,7 @@
 import { rejected } from '../../support/errors';
 import { fixtureFetch, jsonResponse } from '../../support/fixture-fetch';
-import { jsonRequest } from '../../support/logger';
+import { jsonRequest } from '../../support/json-request';
+import { JsonRequestService } from '../../../src/http/json-request.service';
 import { UpstreamRequestError } from '../../../src/http/http.errors';
 
 const URL_ = new URL('https://api.open-meteo.com/v1/forecast');
@@ -97,9 +98,7 @@ describe('JsonRequestService.get', () => {
 
 describe('JsonRequestService.forLog', () => {
   it('strips control and format characters and cuts the text short', () => {
-    const logged = jsonRequest(fixtureFetch(() => jsonResponse({}))).forLog(
-      `a\nb\u001b[31m\u200bc${'x'.repeat(300)}`,
-    );
+    const logged = JsonRequestService.forLog(`a\nb\u001b[31m\u200bc${'x'.repeat(300)}`);
 
     expect(logged.startsWith('a b [31m c')).toBe(true);
     expect(logged).toHaveLength(200);

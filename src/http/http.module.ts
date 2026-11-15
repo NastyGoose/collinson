@@ -7,6 +7,6 @@ const globalFetch: HttpFetch = (input, init) => fetch(input, init);
 
 @Module({
   providers: [{ provide: HTTP_FETCH, useValue: globalFetch }, JsonRequestService],
-  exports: [HTTP_FETCH, JsonRequestService],
+  exports: [JsonRequestService],
 })
 export class HttpModule {}

@@ -43,7 +43,7 @@ export class JsonRequestService {
    * Provider text, cut short and stripped of control characters, for adapters that
    * log a provider's own reason next to their failure.
    */
-  forLog(text: string): string {
+  static forLog(text: string): string {
     return text.replace(/[\p{Cc}\p{Cf}]+/gu, ' ').slice(0, 200);
   }
 
@@ -52,7 +52,7 @@ export class JsonRequestService {
       this.logger.warn(`${label} unavailable: ${String(error)}`);
       return;
     }
-    const detail = error.detail ? `: ${this.forLog(error.detail)}` : '';
+    const detail = error.detail ? `: ${JsonRequestService.forLog(error.detail)}` : '';
     this.logger.warn(`${label} unavailable (${error.kind})${detail}`);
   }
 }

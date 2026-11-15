@@ -7,7 +7,8 @@ import {
 } from '../../fixtures/open-meteo-weather';
 import { rejected } from '../../support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../support/fixture-fetch';
-import { jsonRequest, silentLogger } from '../../support/logger';
+import { jsonRequest } from '../../support/json-request';
+import { silentLogger } from '../../support/logger';
 import { MAX_RESPONSE_BYTES } from '../../../src/http/http.constants';
 import { SourceRefreshError } from '../../../src/forecast/forecast.errors';
 import {

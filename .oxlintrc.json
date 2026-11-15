@@ -7,5 +7,24 @@
   },
   "env": {
     "node": true
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@nestjs/common",
+                "importNames": ["Logger"],
+                "message": "ADR 0006: inject the shared logger with @InjectPinoLogger(<Class>.name) from nestjs-pino."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

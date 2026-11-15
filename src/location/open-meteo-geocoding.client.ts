@@ -45,7 +45,8 @@ export class OpenMeteoGeocodingClient {
       return parseGeocodingResponse(body, countryCode);
     } catch (error) {
       if (error instanceof GeocodingUnavailableError) {
-        const detail = typeof error.cause === 'string' ? `: ${this.http.forLog(error.cause)}` : '';
+        const detail =
+          typeof error.cause === 'string' ? `: ${JsonRequestService.forLog(error.cause)}` : '';
         this.logger.warn(`Geocoding unavailable (${error.kind})${detail}`);
       }
       throw error;

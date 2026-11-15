@@ -40,7 +40,7 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 ## Logging
 
 - Inject the shared logger: `@InjectPinoLogger(<Class>.name) private readonly logger: PinoLogger`.
-- Never write `new Logger(...)`, import `Logger` from `@nestjs/common`, or pass a logger as a function parameter.
+- Never write `new Logger(...)`, import `Logger` from `@nestjs/common` (`npm run lint` rejects it under `src/`), or pass a logger as a function parameter.
 - `.logic` and `.mapper` files never log.
 
 ## Module boundaries
@@ -60,4 +60,4 @@ The short form of [ADR 0006](../../docs/adr/0006-module-layout-and-naming.md). R
 
 - `npm run lint:structure` must pass; it has no list of known violations.
 - When it is unclear where new code belongs, ask the `architect` agent in placement mode.
-- In tests, build loggers with `test/support/logger.ts` (`silentLogger`, `loggerProvider`, `jsonRequest`), or import `LoggerModule.forRoot()` in a module that also has the global ConfigModule.
+- In tests, build loggers with `test/support/logger.ts` (`silentLogger`, `loggerProvider`) and a JsonRequestService over a fixture fetch with `test/support/json-request.ts`, or import `LoggerModule.forRoot()` in a module that also has the global ConfigModule.
