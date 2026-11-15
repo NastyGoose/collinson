@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import {
   BERLIN_DE,
   NO_MATCH,
@@ -11,6 +10,7 @@ import {
 } from '../../fixtures/open-meteo-geocoding';
 import { rejected } from '../../support/errors';
 import { fixtureFetch, jsonResponse, timeoutError } from '../../support/fixture-fetch';
+import { jsonRequest, silentLogger } from '../../support/logger';
 import { GeocodingUnavailableError } from '../../../src/location/location.errors';
 import {
   GEOCODING_REQUEST_COUNT,
@@ -23,18 +23,13 @@ function geocodingError(promise: Promise<unknown>): Promise<GeocodingUnavailable
 }
 
 describe('OpenMeteoGeocodingClient', () => {
-  beforeAll(() => {
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-  });
-
-  afterAll(() => {
-    jest.restoreAllMocks();
-  });
-
   it('requests the bounded search with the country filter', async () => {
     const fetch = fixtureFetch(() => jsonResponse(resultsBody(SAO_PAULO_BR)));
 
-    await new OpenMeteoGeocodingClient(fetch).search('São Paulo', 'BR');
+    await new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search(
+      'São Paulo',
+      'BR',
+    );
 
     const url = fetch.mock.calls[0][0];
     expect(url.origin + url.pathname).toBe('https://geocoding-api.open-meteo.com/v1/search');
@@ -49,7 +44,7 @@ describe('OpenMeteoGeocodingClient', () => {
     const timeout = jest.spyOn(AbortSignal, 'timeout');
     const fetch = fixtureFetch(() => jsonResponse(NO_MATCH));
 
-    await new OpenMeteoGeocodingClient(fetch).search('Berlin', null);
+    await new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search('Berlin', null);
 
     expect(GEOCODING_TIMEOUT_MS).toBe(5000);
     expect(timeout).toHaveBeenCalledWith(5000);
@@ -59,7 +54,7 @@ describe('OpenMeteoGeocodingClient', () => {
   it('omits countryCode for an unfiltered search', async () => {
     const fetch = fixtureFetch(() => jsonResponse(NO_MATCH));
 
-    await new OpenMeteoGeocodingClient(fetch).search('Berlin', null);
+    await new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search('Berlin', null);
 
     expect(fetch.mock.calls[0][0].searchParams.has('countryCode')).toBe(false);
   });
@@ -67,7 +62,9 @@ describe('OpenMeteoGeocodingClient', () => {
   it('maps a unique match to a location with a stable ID', async () => {
     const fetch = fixtureFetch(() => jsonResponse(resultsBody(SAO_PAULO_BR)));
 
-    await expect(new OpenMeteoGeocodingClient(fetch).search('São Paulo', null)).resolves.toEqual([
+    await expect(
+      new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search('São Paulo', null),
+    ).resolves.toEqual([
       {
         id: '3448439',
         name: 'São Paulo',
@@ -85,7 +82,10 @@ describe('OpenMeteoGeocodingClient', () => {
       jsonResponse(resultsBody(SPRINGFIELD_MO, SPRINGFIELD_IL, SPRINGFIELD_MA)),
     );
 
-    const candidates = await new OpenMeteoGeocodingClient(fetch).search('Springfield', null);
+    const candidates = await new OpenMeteoGeocodingClient(
+      jsonRequest(fetch),
+      silentLogger(),
+    ).search('Springfield', null);
 
     expect(candidates.map((candidate) => candidate.id)).toEqual(['4409896', '4250542', '4951788']);
   });
@@ -93,7 +93,9 @@ describe('OpenMeteoGeocodingClient', () => {
   it('returns an empty list for a genuine no-match', async () => {
     const fetch = fixtureFetch(() => jsonResponse(NO_MATCH));
 
-    await expect(new OpenMeteoGeocodingClient(fetch).search('Zzqxqxq', null)).resolves.toEqual([]);
+    await expect(
+      new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search('Zzqxqxq', null),
+    ).resolves.toEqual([]);
   });
 
   it('retries once after a timeout and then succeeds', async () => {
@@ -106,7 +108,10 @@ describe('OpenMeteoGeocodingClient', () => {
       return jsonResponse(resultsBody(BERLIN_DE));
     });
 
-    const candidates = await new OpenMeteoGeocodingClient(fetch).search('Berlin', 'DE');
+    const candidates = await new OpenMeteoGeocodingClient(
+      jsonRequest(fetch),
+      silentLogger(),
+    ).search('Berlin', 'DE');
 
     expect(candidates).toHaveLength(1);
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -122,7 +127,9 @@ describe('OpenMeteoGeocodingClient', () => {
       return jsonResponse({}, 503);
     });
 
-    const error = await geocodingError(new OpenMeteoGeocodingClient(fetch).search('Berlin', null));
+    const error = await geocodingError(
+      new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search('Berlin', null),
+    );
 
     expect(error.kind).toBe('UPSTREAM_FAILURE');
     expect(error.message).toContain('HTTP 503');
@@ -136,7 +143,9 @@ describe('OpenMeteoGeocodingClient', () => {
   ] as const)('fails after two attempts on %s', async (_label, reply, kind) => {
     const fetch = fixtureFetch(reply);
 
-    const error = await geocodingError(new OpenMeteoGeocodingClient(fetch).search('Berlin', null));
+    const error = await geocodingError(
+      new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search('Berlin', null),
+    );
 
     expect(error.kind).toBe(kind);
     expect(error.code).toBe('GEOCODING_UNAVAILABLE');
@@ -155,7 +164,9 @@ describe('OpenMeteoGeocodingClient', () => {
   ] as const)('fails without retrying on %s', async (_label, reply, kind) => {
     const fetch = fixtureFetch(reply);
 
-    const error = await geocodingError(new OpenMeteoGeocodingClient(fetch).search('Berlin', null));
+    const error = await geocodingError(
+      new OpenMeteoGeocodingClient(jsonRequest(fetch), silentLogger()).search('Berlin', null),
+    );
 
     expect(error.kind).toBe(kind);
     expect(fetch).toHaveBeenCalledTimes(1);

@@ -1,5 +1,3 @@
-import type { Logger } from '@nestjs/common';
-
 /**
  * The HTTP client upstream adapters use: the global `fetch` by default. Tests
  * override the HTTP_FETCH provider with fixture responses, so the real adapters
@@ -14,5 +12,4 @@ export interface JsonRequestOptions {
   timeoutMs: number;
   /** Largest body accepted, in bytes; defaults to MAX_RESPONSE_BYTES. */
   maxBytes?: number;
-  logger: Logger;
 }

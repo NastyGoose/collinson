@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { Clock } from '../../src/clock/clock.service';
@@ -12,6 +11,7 @@ import type { ForecastWeather } from '../../src/forecast/forecast.types';
 import { HTTP_FETCH } from '../../src/http/http.constants';
 import type { HttpFetch } from '../../src/http/http.types';
 import type { Location } from '../../src/location/location.types';
+import { LoggerModule } from '../../src/logger/logger.module';
 import { PrismaModule } from '../../src/prisma/prisma.module';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import {
@@ -72,6 +72,7 @@ describe('ForecastService with PostgreSQL', () => {
     const testingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+        LoggerModule.forRoot(),
         PrismaModule,
         ClockModule,
         ForecastModule,
@@ -100,8 +101,6 @@ describe('ForecastService with PostgreSQL', () => {
   }
 
   beforeAll(async () => {
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     moduleRef = await createModule();
     service = moduleRef.get(ForecastService);
     prisma = moduleRef.get(PrismaService);

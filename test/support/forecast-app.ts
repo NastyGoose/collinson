@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from '../../src/app.module';
 import { Clock } from '../../src/clock/clock.service';
 import { HTTP_FETCH } from '../../src/http/http.constants';
@@ -126,7 +127,9 @@ export async function startForecastApp(
     .overrideProvider(Clock)
     .useValue(clock)
     .compile();
-  const app = moduleRef.createNestApplication<INestApplication<App>>();
+  // As in main.ts: Nest's own logs go through the shared logger, silent in tests.
+  const app = moduleRef.createNestApplication<INestApplication<App>>({ bufferLogs: true });
+  app.useLogger(app.get(Logger));
   await app.init();
   return app;
 }

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { ForecastSnapshot as SnapshotRow, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { isStorageFailure } from '../prisma/prisma.errors';
@@ -12,9 +13,10 @@ import type { HourlySeries, WeatherSnapshot, WeatherSource } from './forecast.ty
  */
 @Injectable()
 export class ForecastRepository {
-  private readonly logger = new Logger(ForecastRepository.name);
-
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectPinoLogger(ForecastRepository.name) private readonly logger: PinoLogger,
+  ) {}
 
   /** The stored snapshot for this key, or null when there is none or it cannot be read back. */
   findSnapshot(
@@ -99,7 +101,7 @@ export class ForecastRepository {
       if (!isStorageFailure(error)) {
         throw error;
       }
-      this.logger.error(`Could not ${operation}`, error instanceof Error ? error.stack : error);
+      this.logger.error({ err: error }, `Could not ${operation}`);
       throw new ForecastStorageUnavailableError(`Could not ${operation}.`, { cause: error });
     }
   }

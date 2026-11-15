@@ -5,7 +5,7 @@ const DOMAINS = 'location|forecast|activity|activity-forecast';
 const INFRASTRUCTURE = 'clock|config|http|prisma|logger|calendar|health';
 // Pure folders whose .logic files are their public API (ADR 0006).
 const PUBLIC_LOGIC = '^src/(calendar|activity)/.+[.]logic[.]ts$';
-const FRAMEWORK_PACKAGES = '^node_modules/(@nestjs|@prisma)/';
+const FRAMEWORK_PACKAGES = '^node_modules/(@nestjs|@prisma|nestjs-pino|pino|pino-http)/';
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {

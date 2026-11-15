@@ -8,11 +8,13 @@ import { formatGraphQLError } from './activity-forecast/activity-forecast-error.
 import { ClockModule } from './clock/clock.module';
 import { validateEnv } from './config/config.logic';
 import { HealthModule } from './health/health.module';
+import { LoggerModule } from './logger/logger.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, cache: true, validate: validateEnv }),
+    LoggerModule.forRoot(),
     // Schema-first: the SDL files next to each module are the published contract.
     // __dirname is src/ under ts-jest and dist/ after `nest build`, which copies the
     // .graphql assets (nest-cli.json), so the same glob works in both.

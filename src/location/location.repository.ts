@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { Location as LocationRow } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { isStorageFailure } from '../prisma/prisma.errors';
@@ -12,9 +13,10 @@ import { StorageUnavailableError } from './location.errors';
  */
 @Injectable()
 export class LocationRepository {
-  private readonly logger = new Logger(LocationRepository.name);
-
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectPinoLogger(LocationRepository.name) private readonly logger: PinoLogger,
+  ) {}
 
   findLocation(id: string): Promise<Location | null> {
     return this.storage('read a stored location', async () => {
@@ -122,7 +124,7 @@ export class LocationRepository {
       if (!isStorageFailure(error)) {
         throw error;
       }
-      this.logger.error(`Could not ${operation}`, error instanceof Error ? error.stack : error);
+      this.logger.error({ err: error }, `Could not ${operation}`);
       throw new StorageUnavailableError(`Could not ${operation}.`, { cause: error });
     }
   }

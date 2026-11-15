@@ -12,6 +12,7 @@ module.exports = {
   // extensions (Node ESM style); resolve them to the sources under ts-jest.
   moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/test/support/silent-logs.ts'],
   collectCoverageFrom: ['src/**/*.ts', '!src/generated/**', '!src/main.ts'],
   coverageDirectory: './coverage',
 };

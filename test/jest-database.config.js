@@ -8,6 +8,7 @@ module.exports = {
   transform: { '^.+\\.(t|j)s$': 'ts-jest' },
   moduleNameMapper: require('../jest.config').moduleNameMapper,
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/test/support/silent-logs.ts'],
   globalSetup: '<rootDir>/test/support/global-setup.ts',
   globalTeardown: '<rootDir>/test/support/global-teardown.ts',
   // One database per run; keep its specs in one worker.

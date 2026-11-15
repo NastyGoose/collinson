@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from '../../src/app.module';
 
 describe('GraphQL endpoint (e2e)', () => {
@@ -9,7 +10,8 @@ describe('GraphQL endpoint (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication({ bufferLogs: true });
+    app.useLogger(app.get(Logger));
     await app.init();
   });
 

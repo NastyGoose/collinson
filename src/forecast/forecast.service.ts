@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { Clock } from '../clock/clock.service';
 import type { Location } from '../location/location.types';
 import { FRESH_FOR_MS, STALE_FALLBACK_MS } from './forecast.constants';
@@ -33,7 +34,6 @@ type RefreshOutcome =
  */
 @Injectable()
 export class ForecastService {
-  private readonly logger = new Logger(ForecastService.name);
   /** One in-flight refresh per location and source, shared by every caller in this process. */
   private readonly inFlight = new Map<string, Promise<RefreshOutcome>>();
   private readonly clients: readonly OpenMeteoForecastClient[];
@@ -43,6 +43,7 @@ export class ForecastService {
     atmospheric: OpenMeteoAtmosphericClient,
     marine: OpenMeteoMarineClient,
     private readonly clock: Clock,
+    @InjectPinoLogger(ForecastService.name) private readonly logger: PinoLogger,
   ) {
     this.clients = [atmospheric, marine];
   }

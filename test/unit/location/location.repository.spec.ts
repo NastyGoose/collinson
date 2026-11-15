@@ -1,6 +1,6 @@
-import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { rejected } from '../../support/errors';
+import { loggerProvider } from '../../support/logger';
 import { Prisma } from '../../../src/generated/prisma/client';
 import { PrismaService } from '../../../src/prisma/prisma.service';
 import { StorageUnavailableError } from '../../../src/location/location.errors';
@@ -23,7 +23,11 @@ async function repositoryFailingWith(error: unknown): Promise<LocationRepository
     $executeRaw: fail,
   };
   const moduleRef = await Test.createTestingModule({
-    providers: [LocationRepository, { provide: PrismaService, useValue: prisma }],
+    providers: [
+      LocationRepository,
+      { provide: PrismaService, useValue: prisma },
+      loggerProvider(LocationRepository.name),
+    ],
   }).compile();
   return moduleRef.get(LocationRepository);
 }
@@ -36,14 +40,6 @@ const OPERATIONS: [string, (repository: LocationRepository) => Promise<unknown>]
 ];
 
 describe('LocationRepository', () => {
-  beforeAll(() => {
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-  });
-
-  afterAll(() => {
-    jest.restoreAllMocks();
-  });
-
   describe.each(OPERATIONS)('%s', (_name, operation) => {
     it.each([
       ['an unreachable database (P1001)', knownError('P1001')],

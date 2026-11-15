@@ -1,6 +1,6 @@
-import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { FixedClock } from '../../support/fixed-clock';
+import { loggerProvider } from '../../support/logger';
 import { Clock } from '../../../src/clock/clock.service';
 import type { Location } from '../../../src/location/location.types';
 import {
@@ -47,6 +47,7 @@ async function createService() {
       { provide: LocationRepository, useValue: repository },
       { provide: OpenMeteoGeocodingClient, useValue: geocoding },
       { provide: Clock, useValue: new FixedClock(NOW) },
+      loggerProvider(LocationService.name),
     ],
   }).compile();
   return { service: moduleRef.get(LocationService), repository, geocoding };
@@ -114,7 +115,6 @@ describe('LocationService', () => {
   });
 
   it('still answers when the purge fails', async () => {
-    jest.spyOn(Logger.prototype, 'warn').mockImplementationOnce(() => undefined);
     const { service, repository, geocoding } = await createService();
     geocoding.search.mockResolvedValue([location('1')]);
     repository.purgeExpiredSearches.mockRejectedValue(new StorageUnavailableError('down'));

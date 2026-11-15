@@ -30,7 +30,7 @@ npm run build
 npm run start:prod         # GraphQL endpoint at http://localhost:3000/graphql
 ```
 
-npm 11 may warn during `npm ci` that it skipped the install scripts of `prisma` and `@prisma/engines`. Setup, migrations and tests work without them. `npm run start` (compile and run) and `npm run start:dev` (watch mode) also work. The defaults in `.env.example` match `compose.yaml`. If port 5432 is already in use, set `POSTGRES_PORT` in `.env` and change the port in both URLs. If `DATABASE_URL` is missing or invalid, the app stops at startup and names the key to fix.
+npm 11 may warn during `npm ci` that it skipped the install scripts of `prisma` and `@prisma/engines`. Setup, migrations and tests work without them. `npm run start` (compile and run) and `npm run start:dev` (watch mode) also work. The defaults in `.env.example` match `compose.yaml`. If port 5432 is already in use, set `POSTGRES_PORT` in `.env` and change the port in both URLs. If `DATABASE_URL` is missing or invalid, the app stops at startup and names the key to fix. Logs are JSON lines on stdout at `info`; set `LOG_LEVEL` (`fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`) to change that.
 
 Check that it is up, from a second terminal:
 
@@ -158,7 +158,7 @@ npm run lint:structure     # module boundaries from ADR 0006 (dependency-cruiser
 npm run format:check
 ```
 
-Unit specs live in `test/unit/`, mirroring `src/` ([ADR 0006](docs/adr/0006-module-layout-and-naming.md)). `lint:structure` fails on any boundary violation.
+Test runs are silent; set `LOG_LEVEL` for one run, such as `LOG_LEVEL=warn npm run test:e2e`, to see the service's logs. Unit specs live in `test/unit/`, mirroring `src/` ([ADR 0006](docs/adr/0006-module-layout-and-naming.md)). `lint:structure` fails on any boundary violation.
 
 Integration and E2E tests need PostgreSQL running (`npm run db:up`) but never touch the development database. Each run connects with `TEST_DATABASE_ADMIN_URL`, creates its own `collinson_test_*` database, applies the checked-in migrations with `prisma migrate deploy` and drops the database at the end. The role in that URL needs the `CREATEDB` privilege, which the Compose role has. The tests use a fixed clock and a fake Open-Meteo that answers from fixtures, so they are deterministic and run offline.
 

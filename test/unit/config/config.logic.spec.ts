@@ -3,8 +3,8 @@ import { validateEnv } from '../../../src/config/config.logic';
 const DATABASE_URL = 'postgresql://user:secret@localhost:5432/collinson';
 
 describe('validateEnv', () => {
-  it('accepts a PostgreSQL URL and defaults PORT to 3000', () => {
-    expect(validateEnv({ DATABASE_URL })).toEqual({ DATABASE_URL, PORT: 3000 });
+  it('accepts a PostgreSQL URL and defaults PORT to 3000 and LOG_LEVEL to info', () => {
+    expect(validateEnv({ DATABASE_URL })).toEqual({ DATABASE_URL, PORT: 3000, LOG_LEVEL: 'info' });
   });
 
   it('parses PORT from its string form', () => {
@@ -24,4 +24,17 @@ describe('validateEnv', () => {
   it.each(['0', '65536', '3.5', 'abc'])('rejects PORT=%s', (port) => {
     expect(() => validateEnv({ DATABASE_URL, PORT: port })).toThrow(/PORT must be an integer/);
   });
+
+  it.each(['debug', 'silent'])('accepts LOG_LEVEL=%s', (level) => {
+    expect(validateEnv({ DATABASE_URL, LOG_LEVEL: level }).LOG_LEVEL).toBe(level);
+  });
+
+  it.each(['verbose', 'INFO', '1'])(
+    'rejects LOG_LEVEL=%s and lists the accepted levels',
+    (level) => {
+      expect(() => validateEnv({ DATABASE_URL, LOG_LEVEL: level })).toThrow(
+        /LOG_LEVEL must be one of fatal, error, warn, info, debug, trace, silent/,
+      );
+    },
+  );
 });
