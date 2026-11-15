@@ -19,8 +19,8 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { atmosphericBody, marineBody, PENICHE } from '../fixtures/open-meteo-weather';
 import { FixedClock } from '../support/fixed-clock';
 import { jsonResponse, timeoutError } from '../support/fixture-fetch';
+import { FakeOpenMeteo } from '../support/fake-open-meteo';
 import {
-  FakeOpenMeteo,
   FORECAST_QUERY,
   LOCATIONS_QUERY,
   postForecast,

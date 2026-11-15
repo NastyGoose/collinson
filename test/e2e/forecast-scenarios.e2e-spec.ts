@@ -17,11 +17,10 @@ import {
 import { deferred } from '../support/deferred';
 import { FixedClock } from '../support/fixed-clock';
 import { jsonResponse, timeoutError } from '../support/fixture-fetch';
+import { FakeOpenMeteo, PENICHE_TODAY } from '../support/fake-open-meteo';
 import {
-  FakeOpenMeteo,
   FORECAST_QUERY,
   LOCATIONS_QUERY,
-  PENICHE_TODAY,
   postForecast,
   postGraphQL,
   startForecastApp,
@@ -156,6 +155,8 @@ function expectUnavailable(days: RankedDayBody[], code: string, dates: string[])
 
 describe('activity forecast scenarios (e2e)', () => {
   let app: INestApplication<App>;
+  /** False between closing the app and its restart, so afterAll never closes it twice. */
+  let appRunning = false;
   let prisma: PrismaService;
   let upstream: FakeOpenMeteo;
   const clock = new FixedClock(NOON);
@@ -184,6 +185,7 @@ describe('activity forecast scenarios (e2e)', () => {
 
   beforeAll(async () => {
     app = await startApp();
+    appRunning = true;
     prisma = app.get(PrismaService);
   });
 
@@ -201,7 +203,9 @@ describe('activity forecast scenarios (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (appRunning) {
+      await app.close();
+    }
   });
 
   describe('location selection', () => {
@@ -394,8 +398,10 @@ describe('activity forecast scenarios (e2e)', () => {
     it('reuses the stored search and snapshots after an application restart', async () => {
       const first = await forecast({ city: 'Peniche' });
       await app.close();
+      appRunning = false;
       upstream = new FakeOpenMeteo();
       app = await startApp();
+      appRunning = true;
       prisma = app.get(PrismaService);
       clock.advance(HOUR_MS);
 

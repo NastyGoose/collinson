@@ -23,42 +23,15 @@ import {
 } from '../fixtures/open-meteo-weather';
 import { deferred } from '../support/deferred';
 import { FixedClock } from '../support/fixed-clock';
-import { fixtureFetch, jsonResponse, timeoutError } from '../support/fixture-fetch';
+import { FakeOpenMeteo, PENICHE_TODAY } from '../support/fake-open-meteo';
+import { jsonResponse, timeoutError } from '../support/fixture-fetch';
 import { callsSettled } from '../support/settled';
 
 const NOON = '2026-11-14T12:00:00.000Z';
-/** Peniche (Europe/Lisbon) is UTC+0 in November: its "today" starts at 00:00 UTC. */
-const PENICHE_TODAY = '2026-11-14T00:00:00Z';
 /** Warsaw is UTC+1: local midnight of the 14th and the 15th in UTC. */
 const WARSAW_14TH = '2026-11-13T23:00:00Z';
 const WARSAW_15TH = '2026-11-14T23:00:00Z';
 const HOUR_MS = 60 * 60 * 1000;
-
-type Answer = () => Response | Promise<Response>;
-
-/**
- * Fixture Open-Meteo: one swappable answer per API, with every call counted.
- * A request to any other host is recorded as a miss, which would otherwise look
- * like a network outage, and fails the test.
- */
-class FakeOpenMeteo {
-  atmospheric: Answer = () => jsonResponse(atmosphericBody({ firstHour: PENICHE_TODAY }));
-  marine: Answer = () => jsonResponse(marineBody({ firstHour: PENICHE_TODAY }));
-  readonly calls = { atmospheric: 0, marine: 0 };
-  readonly misses: string[] = [];
-  readonly fetch = fixtureFetch((url) => {
-    if (url.hostname === 'api.open-meteo.com') {
-      this.calls.atmospheric += 1;
-      return this.atmospheric();
-    }
-    if (url.hostname === 'marine-api.open-meteo.com') {
-      this.calls.marine += 1;
-      return this.marine();
-    }
-    this.misses.push(url.toString());
-    throw new Error(`no fixture for ${url.toString()}`);
-  });
-}
 
 /** Payloads for Warsaw, which echo its zone and offset. */
 const warsawAtmospheric = (firstHour: string) =>
@@ -162,7 +135,7 @@ describe('ForecastsService with PostgreSQL', () => {
 
       expect(weather.atmospheric.freshness).toBe('FRESH');
       expect(weather.marine.freshness).toBe('FRESH');
-      expect(provider.calls).toEqual({ atmospheric: 1, marine: 1 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 1, marine: 1 });
       const rows = await snapshotRows();
       expect(rows).toHaveLength(2);
       expect(rows[0]).toMatchObject({
@@ -204,7 +177,7 @@ describe('ForecastsService with PostgreSQL', () => {
 
       const second = await weatherFor(PENICHE);
 
-      expect(provider.calls).toEqual({ atmospheric: 1, marine: 1 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 1, marine: 1 });
       expect(second).toEqual(first);
     });
 
@@ -217,7 +190,7 @@ describe('ForecastsService with PostgreSQL', () => {
 
       const afterRestart = await weatherFor(PENICHE);
 
-      expect(provider.calls).toEqual({ atmospheric: 1, marine: 1 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 1, marine: 1 });
       expect(afterRestart).toEqual(first);
     });
 
@@ -228,7 +201,7 @@ describe('ForecastsService with PostgreSQL', () => {
 
       const weather = await weatherFor(PENICHE);
 
-      expect(provider.calls).toEqual({ atmospheric: 2, marine: 2 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 2, marine: 2 });
       expect(weather.atmospheric.freshness).toBe('FRESH');
       const rows = await snapshotRows();
       expect(rows).toHaveLength(2);
@@ -267,7 +240,7 @@ describe('ForecastsService with PostgreSQL', () => {
       held.resolve();
       const results = await Promise.all(requests);
 
-      expect(provider.calls).toEqual({ atmospheric: 1, marine: 1 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 1, marine: 1 });
       expect(results.every((weather) => weather.atmospheric.freshness === 'FRESH')).toBe(true);
     });
   });
@@ -285,7 +258,7 @@ describe('ForecastsService with PostgreSQL', () => {
       const weather = await weatherFor(WARSAW);
 
       expect(weather.window.dates[0]).toBe('2026-11-16');
-      expect(provider.calls).toEqual({ atmospheric: 2, marine: 2 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 2, marine: 2 });
       expect(weather.atmospheric.freshness).toBe('FRESH');
       const rows = await snapshotRows();
       expect(rows.map((row) => row.coverage_start)).toEqual([
@@ -338,7 +311,7 @@ describe('ForecastsService with PostgreSQL', () => {
 
       const weather = await weatherFor(PENICHE);
 
-      expect(provider.calls).toEqual({ atmospheric: 3, marine: 2 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 3, marine: 2 });
       expect(weather.atmospheric).toMatchObject({
         freshness: 'STALE',
         snapshot: { fetchedAt: new Date(NOON) },
@@ -435,7 +408,7 @@ describe('ForecastsService with PostgreSQL', () => {
       const weather = await weatherFor(PENICHE);
 
       expect(weather.atmospheric.freshness).toBe('FRESH');
-      expect(provider.calls).toEqual({ atmospheric: 2, marine: 2 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 2, marine: 2 });
       expect((await snapshotRows()).map((row) => row.schema_version)).toEqual([0, 1, 0, 1]);
     });
 
@@ -447,7 +420,7 @@ describe('ForecastsService with PostgreSQL', () => {
       const weather = await weatherFor(PENICHE);
 
       expect(weather.atmospheric.freshness).toBe('FRESH');
-      expect(provider.calls).toEqual({ atmospheric: 2, marine: 1 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 2, marine: 1 });
       const [atmosphericRow] = await snapshotRows();
       expect(atmosphericRow.hourly.time).toHaveLength(192);
     });
@@ -461,7 +434,7 @@ describe('ForecastsService with PostgreSQL', () => {
       await weatherFor(PENICHE);
       await weatherFor(WARSAW);
 
-      expect(provider.calls).toEqual({ atmospheric: 1, marine: 1 });
+      expect(provider.calls).toEqual({ geocoding: 0, atmospheric: 1, marine: 1 });
       expect((await snapshotRows()).map((row) => `${row.location_id}:${row.source}`)).toEqual([
         `${PENICHE.id}:ATMOSPHERIC`,
         `${PENICHE.id}:MARINE`,
