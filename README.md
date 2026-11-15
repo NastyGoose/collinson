@@ -89,7 +89,7 @@ query Forecast($input: ForecastInput!) {
 }
 ```
 
-Pass exactly one of `city` and `locationId`. `countryCode` narrows a city search only. To resolve an `AmbiguousLocation`, repeat the query with a candidate's `id`. An unknown city or ID returns `LocationNotFound`.
+Pass exactly one of `city` and `locationId`. `countryCode` narrows a city search only. To resolve an `AmbiguousLocation`, repeat the query with a candidate's `id`. An unknown city or ID returns `LocationNotFound`. An ID works only after a search has stored it, so on a fresh database send `forecast-ambiguous.json` before `forecast-by-id.json`.
 
 A trimmed response for Nazaré, recorded on 15 November 2026. Live values change with the forecast:
 
@@ -140,7 +140,7 @@ If Open-Meteo fails, the source shows `STALE` with the stored snapshot's `fetche
 
 Errors carry a stable `extensions.code`:
 
-- `BAD_USER_INPUT` for an invalid selector or filter, with `extensions.field` naming the input, or null when the selector as a whole is wrong.
+- `BAD_USER_INPUT` for an invalid selector or filter. When the service rejects the input, `extensions.field` names it, or is null when the selector as a whole is wrong. GraphQL's own variable errors, such as a missing `input`, use the same code without `field`.
 - `GEOCODING_UNAVAILABLE` when a city search needs Open-Meteo geocoding and it fails.
 - `STORAGE_UNAVAILABLE` when PostgreSQL cannot serve the request.
 
@@ -161,7 +161,7 @@ Integration and E2E tests need PostgreSQL running (`npm run db:up`) but never to
 
 [CI](.github/workflows/ci.yml) runs these checks on every pull request and every push to `main`, against a PostgreSQL 17 service container. It then applies the migrations to an empty database, starts the built app and checks the `health` query.
 
-A live check against the real Open-Meteo is optional and not part of CI. Start the app, then run `npm run smoke:live`. It sends every file in `examples/` and checks the shape of each answer. On GitHub it can be started by hand as the [Live smoke workflow](.github/workflows/live-smoke.yml).
+A live check against the real Open-Meteo is optional and not part of CI. Start the app, then run `npm run smoke:live`. It sends every file in `examples/`, in an order that stores Madrid before it is requested by ID, and checks the shape of each answer. A file without a check fails the run. On GitHub it can be started by hand as the [Live smoke workflow](.github/workflows/live-smoke.yml).
 
 ## Assumptions and limits
 
@@ -180,7 +180,7 @@ A live check against the real Open-Meteo is optional and not part of CI. Start t
 
 - Each source keeps one snapshot per location. A snapshot is reused while it is under six hours old and covers the needed local hours of all seven dates.
 - When a refresh fails, a snapshot up to 24 hours old that still covers the dates is served as `STALE`. Otherwise the source is `UNAVAILABLE`. A refresh that fails or does not validate never replaces the stored snapshot.
-- Each provider call has a five-second timeout. Timeouts, network errors and 5xx answers are retried once. Rate limits, other 4xx answers, invalid payloads and answers over 2 MiB are not retried.
+- Each provider call has a five-second timeout. Timeouts, network errors and 5xx answers are retried once. Rate limits, other 4xx answers, invalid payloads and successful answers over 2 MiB are not retried.
 - Simultaneous refreshes are merged within one process only. Several app instances could each call Open-Meteo once.
 
 **Scoring (v1, [ADR 0005](docs/adr/0005-deterministic-activity-scoring.md))**
