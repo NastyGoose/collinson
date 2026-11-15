@@ -63,7 +63,9 @@ agreed structure. You report findings and give fixes. You never change anything.
 Return this report as your final message. Do not write it to disk.
 
 1. **Verdict.** One line: `clean`, or `N findings (x high, y medium, z low)`. Severity:
-   - **high**: a boundary violation or I/O in pure code.
+   - **high**: a boundary violation that is not in the known-violations list, or I/O in pure code.
+   - Known violations (the specs still under `src/`, for example) are **medium**. Report them once per file, not
+     once per import edge.
    - **medium**: mixed types, constants or logic, wrong role, logger construction, or a misplaced responsibility.
    - **low**: naming only.
 2. **Module map.** A Mermaid `flowchart LR` with one node per `src/` folder and one edge per folder-to-folder

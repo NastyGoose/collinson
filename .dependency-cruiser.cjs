@@ -25,7 +25,7 @@ module.exports = {
       comment: 'ADR 0006: activity scoring imports no I/O, infrastructure or framework code.',
       severity: 'error',
       from: { path: '^src/activities/' },
-      to: { path: [`^src/(prisma|http|generated|logger|clock|config)/`, FRAMEWORK_PACKAGES] },
+      to: { path: ['^src/(prisma|http|generated|logger|clock|config)/', FRAMEWORK_PACKAGES] },
     },
     {
       name: 'pure-no-io-domains',
@@ -93,6 +93,13 @@ module.exports = {
       comment: 'ADR 0006: unit specs live in test/unit/, mirroring src/.',
       severity: 'error',
       from: { path: '^src/.+[.]spec[.]ts$' },
+      to: {},
+    },
+    {
+      name: 'no-spec-in-src-orphan',
+      comment: 'ADR 0006: the same for a spec under src/ that imports nothing, which no-spec-in-src cannot see.',
+      severity: 'error',
+      from: { path: '^src/.+[.]spec[.]ts$', orphan: true },
       to: {},
     },
   ],
