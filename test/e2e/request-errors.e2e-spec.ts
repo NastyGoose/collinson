@@ -238,4 +238,105 @@ describe('request errors at the HTTP and GraphQL boundary (e2e)', () => {
       data: { __schema: { queryType: { name: 'Query' } } },
     });
   });
+
+  it('answers a parse error with 400 and a fixed message that keeps the location', async () => {
+    const response = await postRaw({ query: `{ locations(city: "${SENTINEL}" ` });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      errors: [
+        {
+          message: 'The query is not valid GraphQL syntax.',
+          locations: [expect.objectContaining({ line: 1 })],
+          extensions: { code: 'GRAPHQL_PARSE_FAILED' },
+        },
+      ],
+    });
+    expectNoSentinel(response.text);
+  });
+
+  it.each([
+    ['a number for a String argument', `{ locations(city: ${SENTINEL_ID}) { id } }`],
+    ['a string for an input object', `{ activityForecast(input: "${SENTINEL}") { __typename } }`],
+    ['an undeclared input field', `{ activityForecast(input: { ${SENTINEL}: 1 }) { __typename } }`],
+  ])(
+    'answers a validation error on an input literal (%s) with a fixed message',
+    async (_name, query) => {
+      const response = await postRaw({ query });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        errors: [
+          {
+            message: 'An input value in the query does not match its expected type.',
+            locations: [expect.objectContaining({ line: 1 })],
+            extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
+          },
+        ],
+      });
+      expectNoSentinel(response.text);
+    },
+  );
+
+  it('keeps the message of a validation error about a name', async () => {
+    const response = await postRaw({ query: '{ unknownField }' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors).toEqual([
+      expect.objectContaining({
+        message: 'Cannot query field "unknownField" on type "Query".',
+        extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
+      }),
+    ]);
+  });
+
+  it('answers an unknown operationName with a fixed message', async () => {
+    const response = await postRaw({
+      query: LOCATIONS_QUERY,
+      variables: { city: 'Warsaw' },
+      operationName: SENTINEL,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      errors: [
+        {
+          message: 'Set operationName to the name of one operation in the query.',
+          extensions: { code: 'OPERATION_RESOLUTION_FAILURE' },
+        },
+      ],
+    });
+    expectNoSentinel(response.text);
+  });
+
+  it('reports more than 50 variable errors as BAD_USER_INPUT only', async () => {
+    const input = Object.fromEntries(
+      Array.from({ length: 60 }, (_, index) => [`${SENTINEL}${index}`, SENTINEL_ID]),
+    );
+
+    const response = await postRaw({ query: FORECAST_QUERY, variables: { input } });
+
+    expect(response.status).toBe(400);
+    const errors = (response.body as { errors: { message: string; extensions: object }[] }).errors;
+    expect(errors).toHaveLength(51);
+    expect(new Set(errors.map((error) => JSON.stringify(error.extensions)))).toEqual(
+      new Set([JSON.stringify({ code: 'BAD_USER_INPUT' })]),
+    );
+    expect(errors[50].message).toBe('Too many invalid variables; the rest were not checked.');
+    expectNoSentinel(response.text);
+  });
+
+  it('answers an unknown route with 404 without echoing the path', async () => {
+    const response = await request(app.getHttpServer())
+      .post(`/${SENTINEL}?id=${SENTINEL_ID}`)
+      .send({ query: '{ __typename }' });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({
+      message: 'No route matches the request.',
+      error: 'Not Found',
+      statusCode: 404,
+    });
+    expectNoSentinel(response.text);
+  });
 });
