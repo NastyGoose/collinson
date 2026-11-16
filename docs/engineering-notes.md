@@ -175,7 +175,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Residual:** three advisories, all in the Jest dev-only tree. They are GHSA-3g3m-2fjr-6pw4 in `glob` (moderate), GHSA-g3hv-75wg-m249 in `minimatch` (moderate) and GHSA-gcqx-w48m-w2h4 in `deepmerge` (low). `npm audit` counts them as 20 vulnerable packages. The suggested fix is a semver-major downgrade of Jest, so they are accepted for this submission. `npm ls --all` also flags `chokidar` under the dev-only `@nestjs/cli`. That predates this change and shows up on `main` too.
 - **Removal:** delete the override once Apollo Server lifts the cap, or once `@nestjs/graphql` moves its own pins. Then run `npm ls @graphql-tools/utils` and `npm audit --omit=dev` again.
 
-### 2026-11-16 — Request errors and introspection (ARC-59)
+### 2026-11-16 — Request errors and introspection (ARC-59, [#13](https://github.com/NastyGoose/collinson/pull/13))
 
 - **Probe first:** a throwaway E2E spec sent benign sentinel values to the running app. It confirmed three of the drafted ARC-48 follow-ups. Malformed JSON came back as Nest's default 400 with the V8 parser message, which can quote the body. Variable coercion errors quoted the submitted value, and `LocationNotFound` repeated the city. It also showed that the charset and content-encoding errors echo a request header, so the same filter covers them.
 - **Decision:** a body that does not parse gets a GraphQL-shaped body with `BAD_REQUEST`, the code Apollo already uses for other malformed requests, so `/graphql` answers with one shape. **Rejected:** keeping Nest's `{statusCode, error, message}` shape with a fixed message, which would leave two error shapes on one endpoint.
