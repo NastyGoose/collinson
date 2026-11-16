@@ -52,7 +52,6 @@ h1, h2, h3 { margin: 0; line-height: 1.25; text-wrap: balance; }
 .steps button:hover { background: var(--code); }
 .steps button[aria-current="true"] { background: var(--accent-soft); font-weight: 600; }
 .steps .n { color: var(--muted); font-variant-numeric: tabular-nums; }
-.steps .t { color: var(--muted); font-size: 12px; }
 .steps .done .n { color: var(--good); }
 .try input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); min-width: 0; }
 .try .row input:first-child { flex: 1; } .try .row input:last-child { width: 64px; flex: none; text-transform: uppercase; }
@@ -240,7 +239,7 @@ const STEPS = [
     brief: 'What we’re most interested in is how you work through problem: the decisions you make, the assumptions you commit to, and how you get there.',
     say: [
       'The service is a NestJS GraphQL API. It takes a city or town, gets weather from Open-Meteo, stores it in PostgreSQL and ranks the next seven days for skiing, surfing, outdoor and indoor sightseeing. It has no front end.',
-      'This console is an optional reviewer aid and is not part of the service. Every button sends a plain GraphQL POST to the running service, the same requests as the files in <code>examples/</code>, so you can also send them with curl from the README.',
+      'This console is an optional reviewer aid and is not part of the service. The request buttons send plain GraphQL POSTs to the running service, the same requests as the files in <code>examples/</code>, so you can also send them with curl from the README. Three kinds of button go to the console’s own server instead: showing database rows, clearing stored weather and running the tests.',
       'Steps 1 to 9 show the service answering live. Steps 10 and 11 cover how the work was done, the assumptions and what was cut, which the brief ranks first.',
       'Each step has an “Under the hood” card with the code, the motivation and the trade-offs. The technical reference in the side panel has the diagrams, technology choices, schema and known weak spots in one place.',
       'Start by checking that the service and the database are up.',
@@ -389,8 +388,8 @@ const STEPS = [
     ],
     actions: [
       { label: 'Clear stored weather for Nazaré', reset: NAZARE_ID, note: 'Deletes its rows from forecast_snapshots in your local database. Run step 4 first so Nazaré is stored.' },
-      { label: 'Request Nazaré (cold)', raw: forecast({ locationId: NAZARE_ID }), tag: 'cold', note: 'Calls Open-Meteo for both sources and stores the result.' },
-      { label: 'Request Nazaré again (warm)', raw: forecast({ locationId: NAZARE_ID }), tag: 'warm', note: 'Served from PostgreSQL.' },
+      { label: 'Request Nazaré (cold)', raw: forecast({ locationId: NAZARE_ID }), note: 'Calls Open-Meteo for both sources and stores the result.' },
+      { label: 'Request Nazaré again (warm)', raw: forecast({ locationId: NAZARE_ID }), note: 'Served from PostgreSQL.' },
       { label: 'Show stored snapshots', db: true, note: 'Rows in forecast_snapshots.' },
     ],
     qa: [
@@ -547,7 +546,7 @@ return toActivityForecast(location, weather, scores);   // 6. map to the SDL`)}
       <p>Files are named <code>&lt;domain&gt;.&lt;role&gt;.ts</code>: <code>.resolver</code>, <code>.service</code>, <code>.repository</code>, <code>.client</code>, <code>.mapper</code>, <code>.logic</code>, <code>.types</code>, <code>.constants</code>, <code>.errors</code>.</p>
       <p>${src('.dependency-cruiser.cjs')} checks the boundaries in CI: no circular imports, activity and calendar import no framework, I/O or Node core code, domains never import the GraphQL layer, infrastructure never imports a domain, and one domain cannot reach another's repository or client.</p>
       ${why('A rule in a document drifts. A rule in CI fails the build. There is no list of known violations.')}
-      ${cost('More files and some ceremony for a 4,000-line service. The refactor to this layout was its own two tickets after the features were done.')}`],
+      ${cost('More files and some ceremony for a 3,500-line service. The refactor to this layout was its own two tickets after the features were done.')}`],
     ['Configuration fails at startup', `<p>${src('src/config/config.logic.ts')} validates <code>DATABASE_URL</code>, <code>PORT</code>, <code>LOG_LEVEL</code> and <code>GRAPHQL_INTROSPECTION</code> once. It collects every problem and exits with a message that names each key.</p>
       ${why('A missing URL should stop the process with a clear message, not fail on the first request.')}`],
   ],
@@ -973,17 +972,23 @@ const store = {
   get(key, fallback) { try { const v = localStorage.getItem('review.' + key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem('review.' + key, JSON.stringify(value)); } catch { /* optional */ } },
 };
-let current = Math.min(store.get('step', 0), STEPS.length - 1);
-const visited = new Set(store.get('visited', []));
+const storedStep = store.get('step', 0);
+let current = Number.isInteger(storedStep) && storedStep >= 0 ? Math.min(storedStep, STEPS.length - 1) : 0;
+const storedVisited = store.get('visited', []);
+const visited = new Set(Array.isArray(storedVisited) ? storedVisited.filter((i) => Number.isInteger(i) && i >= 0 && i < STEPS.length) : []);
 const results = new Map();   // step index -> { html }
 const logs = new Map();      // step index -> rows
 const $ = (id) => document.getElementById(id);
+const n = (v) => Number(v);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ---------- API ---------- */
 async function api(path, body) {
   const response = await fetch(path, body === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  return response.json();
+  const answer = await response.json();
+  // The console server reports its own failures (PostgreSQL down, refused request) as { error }.
+  if (!response.ok) throw new Error(answer?.error ?? `HTTP ${response.status}`);
+  return answer;
 }
 async function refreshStatus() {
   try {
@@ -1007,7 +1012,7 @@ function renderForecast(f) {
   const loc = f.location;
   const sources = f.sources.map((s) => `<span class="chip ${freshClass[s.freshness]}">${esc(s.source)} · ${esc(s.freshness)}${s.fetchedAt ? ' · fetched ' + esc(s.fetchedAt.slice(11, 23)) + ' UTC' : ''}${s.failureCode ? ' · ' + esc(s.failureCode) : ''}</span>`).join('');
   const acts = f.activities.map((a) => `<div class="card act"><h3>${esc(ACTIVITY[a.activity] ?? a.activity)}</h3>${a.days.map((d) => d.availability === 'AVAILABLE'
-    ? `<div class="day"><span class="rank">#${d.rank}</span><span>${esc(weekday(d.date))}</span><span class="bar"><i style="width:${d.score}%"></i></span><span class="score">${d.score}</span><span class="reason">${esc(d.reason)}</span></div>`
+    ? `<div class="day"><span class="rank">#${n(d.rank)}</span><span>${esc(weekday(d.date))}</span><span class="bar"><i style="width:${n(d.score)}%"></i></span><span class="score">${n(d.score)}</span><span class="reason">${esc(d.reason)}</span></div>`
     : `<div class="day na"><span class="rank">–</span><span>${esc(weekday(d.date))}</span><span><span class="chip">${esc(d.unavailableCode)}</span></span><span class="score">–</span><span class="reason">${esc(d.reason)}</span></div>`).join('')}</div>`).join('');
   return `<div class="meta"><strong>${esc(loc.name)}</strong><span>${esc([loc.region, loc.country].filter(Boolean).join(', '))}</span>
       <span class="chip accent">${esc(loc.timezone)}</span><span class="chip">${esc(f.startDate)} to ${esc(f.endDate)}</span>
@@ -1022,7 +1027,7 @@ function renderCandidates(list, withButton) {
 function renderGraphql(answer) {
   if (!answer.reachable) return { html: `<div class="meta"><span class="chip bad">No answer</span></div><p>${esc(answer.error)}</p>`, summary: 'service not reachable' };
   const body = answer.body;
-  const head = `<span class="chip ${answer.status < 400 ? 'good' : 'warn'}">HTTP ${answer.status}</span><span class="chip accent">${answer.ms} ms</span>`;
+  const head = `<span class="chip ${answer.status < 400 ? 'good' : 'warn'}">HTTP ${n(answer.status)}</span><span class="chip accent">${n(answer.ms)} ms</span>`;
   let view = '', summary = '';
   if (body?.errors) {
     view = body.errors.map((e) => `<div class="meta"><span class="chip bad">${esc(e.extensions?.code ?? 'ERROR')}</span>${e.extensions && 'field' in e.extensions ? `<span class="chip">field: ${esc(e.extensions.field ?? 'null')}</span>` : ''}<span>${esc(e.message)}</span></div>`).join('');
@@ -1076,12 +1081,12 @@ async function runAction(step, action, button) {
   button.disabled = true;
   const before = button.textContent; button.textContent = 'Running…';
   try {
-    if (action.raw !== undefined) await runGraphql(step, action.tag ? `${action.label}` : action.label, action.raw);
+    if (action.raw !== undefined) await runGraphql(step, action.label, action.raw);
     else if (action.db) { show(step, renderDb(await api('/api/db'))); addLog(step, action.label, '–', '–', 'read from PostgreSQL'); }
-    else if (action.reset) { const r = await api('/api/reset', { locationId: action.reset }); addLog(step, action.label, '–', '–', `${r.deleted} snapshot rows deleted`); show(step, `<div class="meta"><span class="chip warn">${r.deleted} rows deleted</span><span>The next request has to call Open-Meteo.</span></div>`); }
-    else if (action.run) { const r = await api('/api/run', { name: action.run }); addLog(step, action.label, '–', r.ms, `exit code ${r.exitCode}`); show(step, `<div class="meta"><span class="chip ${r.exitCode === 0 ? 'good' : 'bad'}">${r.exitCode === 0 ? 'Passed' : 'Failed, exit code ' + r.exitCode}</span><span class="chip accent">${(r.ms / 1000).toFixed(1)} s</span><code>${esc(r.command)}</code></div><pre>${esc(r.output)}</pre>`); }
+    else if (action.reset) { const r = await api('/api/reset', { locationId: action.reset }); addLog(step, action.label, '–', '–', `${n(r.deleted)} snapshot rows deleted`); show(step, `<div class="meta"><span class="chip warn">${n(r.deleted)} rows deleted</span><span>The next request has to call Open-Meteo.</span></div>`); }
+    else if (action.run) { const r = await api('/api/run', { name: action.run }); addLog(step, action.label, '–', r.ms, `exit code ${n(r.exitCode)}`); show(step, `<div class="meta"><span class="chip ${r.exitCode === 0 ? 'good' : 'bad'}">${r.exitCode === 0 ? 'Passed' : 'Failed, exit code ' + r.exitCode}</span><span class="chip accent">${(r.ms / 1000).toFixed(1)} s</span><code>${esc(r.command)}</code></div><pre>${esc(r.output)}</pre>`); }
   } catch (error) {
-    show(step, `<div class="meta"><span class="chip bad">Console server error</span><span>${esc(error.message)}. Is <code>npm run review:console</code> still running?</span></div>`);
+    show(step, `<div class="meta"><span class="chip bad">Console server error</span><span>${esc(error.message)}. Check that <code>npm run review:console</code> is still running and that PostgreSQL is up with the migrations applied.</span></div>`);
   } finally { button.disabled = false; button.textContent = before; refreshStatus(); }
 }
 
@@ -1111,7 +1116,7 @@ function paintResult() {
   const box = $('result'); if (!box) return;
   const rows = logs.get(current) ?? [];
   box.innerHTML = (results.get(current) ?? '<p class="empty">Nothing run yet. Use the buttons above.</p>')
-    + (rows.length ? `<details open><summary>Run log</summary><div class="scroll"><table class="log"><tr><th>Time</th><th>Request</th><th>HTTP</th><th class="num">ms</th><th>Result</th></tr>${rows.map((r) => `<tr><td class="mono">${r.at}</td><td>${esc(r.label)}</td><td>${r.http}</td><td class="num">${r.ms}</td><td class="mono">${esc(r.summary)}</td></tr>`).join('')}</table></div></details>` : '');
+    + (rows.length ? `<details open><summary>Run log</summary><div class="scroll"><table class="log"><tr><th>Time</th><th>Request</th><th>HTTP</th><th class="num">ms</th><th>Result</th></tr>${rows.map((r) => `<tr><td class="mono">${esc(r.at)}</td><td>${esc(r.label)}</td><td>${esc(r.http)}</td><td class="num">${esc(r.ms)}</td><td class="mono">${esc(r.summary)}</td></tr>`).join('')}</table></div></details>` : '');
 }
 function paint() {
   const s = STEPS[current];
@@ -1138,6 +1143,7 @@ function paint() {
 function go(index) { refPage = null; current = Math.max(0, Math.min(STEPS.length - 1, index)); paint(); }
 
 /* ---------- events ---------- */
+let disarm;
 $('stage').addEventListener('click', (event) => {
   const b = event.target.closest('button'); if (!b) return;
   if (b.dataset.tech) return b.closest('.tech').querySelectorAll('details').forEach((d) => { d.open = b.dataset.tech === 'open'; });
@@ -1148,7 +1154,8 @@ $('stage').addEventListener('click', (event) => {
   const action = STEPS[current].actions[Number(b.dataset.action)];
   if (action.reset && b.dataset.armed !== 'yes') {   // in-page confirmation for the one destructive button
     b.dataset.armed = 'yes'; b.textContent = 'Click again to delete';
-    setTimeout(() => { if (b.dataset.armed === 'yes') { b.dataset.armed = ''; b.textContent = action.label; } }, 4000);
+    clearTimeout(disarm);
+    disarm = setTimeout(() => { if (b.dataset.armed === 'yes') { b.dataset.armed = ''; b.textContent = action.label; } }, 4000);
     return;
   }
   b.dataset.armed = '';
@@ -1156,7 +1163,11 @@ $('stage').addEventListener('click', (event) => {
 });
 $('steps').addEventListener('click', (event) => { const b = event.target.closest('button[data-step]'); if (b) go(Number(b.dataset.step)); });
 $('refs').addEventListener('click', (event) => { const b = event.target.closest('button[data-ref]'); if (b) openRef(Number(b.dataset.ref)); });
-const step = (delta) => go(refPage === null ? current + delta : current);   // from a reference page, return to the step
+const step = (delta) => {
+  if (refPage !== null) return go(current);
+  const next = Math.max(0, Math.min(STEPS.length - 1, current + delta));
+  if (next !== current) go(next);
+};   // from a reference page, return to the step
 $('btn-prev').onclick = () => step(-1);
 $('btn-next').onclick = () => step(1);
 $('btn-status').onclick = refreshStatus;

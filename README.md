@@ -156,7 +156,7 @@ With the service running (`npm run start:prod`), in a second terminal:
 npm run review:console     # then open http://localhost:4000
 ```
 
-Set `REVIEW_CONSOLE_PORT` to use another port. The console listens on localhost only. Besides forwarding requests, it reads a few rows from PostgreSQL to show what is stored, and it can start `npm test`, `npm run test:e2e` and `npm run lint:structure`. One button, "Clear stored weather for Nazaré", deletes that location's rows from `forecast_snapshots` in your local database to show a cold request, and asks for a second click first. Everything it shows can also be checked with the curl commands above.
+Set `REVIEW_CONSOLE_PORT` to use another port. The console listens on localhost only and refuses requests that do not come from its own page. Besides forwarding requests, it reads a few rows from PostgreSQL to show what is stored, and it can start `npm test`, `npm run test:e2e` and `npm run lint:structure`. One button, "Clear stored weather for Nazaré", deletes that location's rows from `forecast_snapshots` in your local database to show a cold request, and asks for a second click first. Everything it shows can also be checked with the curl commands above.
 
 ## Tests and checks
 
