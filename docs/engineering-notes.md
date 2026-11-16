@@ -197,7 +197,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Check:** from a fresh clone of the branch, all 71 relative links and heading anchors resolve, and every public link answers 200. A deliberately broken path and anchor were flagged. The pull request links answer 404 until the repository is public.
 - **Decision (author):** the commit history stays as it is, author metadata included. No rewrite is planned, so the commit SHAs that the PR notes pin stay valid.
 - **Decision (author):** ADRs 0001 and 0002 keep "Vlad" as the name behind the framework and database choices. The package stays `UNLICENSED` with no LICENSE file: this is a non-commercial assessment, and no license is needed.
-- **Open, with the author:** whether the workspace links stay. It is recorded here once decided. Changing visibility, any history rewrite and notifying the assessor are separate actions.
+- **Decision (author):** the workspace links stay, labelled and after the repository sources, so the trail to the source documents remains visible. Changing visibility and notifying the assessor are separate actions.
 
 ## Scope cuts
 
