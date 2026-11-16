@@ -146,6 +146,18 @@ Errors carry a stable `extensions.code`:
 
 GraphQL's own request errors keep their codes, such as `GRAPHQL_VALIDATION_FAILED`. A body that is not valid JSON gets HTTP 400 with `{"errors":[{"message":"The request body is not valid JSON.","extensions":{"code":"BAD_REQUEST"}}]}`. Error messages and `LocationNotFound` never repeat the submitted city, ID or variable values, the request body, the requested path or provider text. Parse errors, validation errors on a value written in the query and an unknown `operationName` keep their codes, and their locations where they have any, but get fixed messages. Validation errors about names, such as `Cannot query field "x" on type "Query".` or an undeclared input field, keep their message. Any other failure returns `INTERNAL_SERVER_ERROR` with a generic message, and the details go only to the server log.
 
+## Optional: review console
+
+The service has no front end. For reviewers there is an optional local page that walks through the service step by step. It sends the same GraphQL requests as the files in `examples/` to the running service and shows the answers, with diagrams and notes on the decisions and trade-offs behind each step. It lives in [`tools/review-console/`](tools/review-console/), outside `src/`, and adds no dependency.
+
+With the service running (`npm run start:prod`), in a second terminal:
+
+```bash
+npm run review:console     # then open http://localhost:4000
+```
+
+Set `REVIEW_CONSOLE_PORT` to use another port. The console listens on localhost only. Besides forwarding requests, it reads a few rows from PostgreSQL to show what is stored, and it can start `npm test`, `npm run test:e2e` and `npm run lint:structure`. One button, "Clear stored weather for Nazaré", deletes that location's rows from `forecast_snapshots` in your local database to show a cold request, and asks for a second click first. Everything it shows can also be checked with the curl commands above.
+
 ## Tests and checks
 
 ```bash
@@ -196,7 +208,7 @@ A live check against the real Open-Meteo is optional and not part of CI. Start t
 
 **Out of scope**
 
-There is no frontend, user accounts, booking, resort or beach lookup, personal preferences, historical analytics, background refresh workers, authentication, rate limiting or hosted deployment.
+There is no product frontend (the [review console](#optional-review-console) is a reviewer aid outside the service), user accounts, booking, resort or beach lookup, personal preferences, historical analytics, background refresh workers, authentication, rate limiting or hosted deployment.
 
 ## Database migrations
 
