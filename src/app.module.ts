@@ -6,7 +6,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ActivityForecastModule } from './activity-forecast/activity-forecast.module';
 import { formatGraphQLError } from './activity-forecast/activity-forecast-error.mapper';
-import { RequestBodyErrorFilter } from './activity-forecast/activity-forecast-request-body.filter';
+import { RequestErrorFilter } from './activity-forecast/activity-forecast-request.filter';
 import { ClockModule } from './clock/clock.module';
 import { validateEnv } from './config/config.logic';
 import type { Env } from './config/config.types';
@@ -38,7 +38,7 @@ import { PrismaModule } from './prisma/prisma.module';
     HealthModule,
     ActivityForecastModule,
   ],
-  // Malformed request bodies get a fixed GraphQL-shaped 4xx answer (ARC-59).
-  providers: [{ provide: APP_FILTER, useClass: RequestBodyErrorFilter }],
+  // Malformed bodies and unknown routes get fixed answers (ARC-59).
+  providers: [{ provide: APP_FILTER, useClass: RequestErrorFilter }],
 })
 export class AppModule {}
