@@ -240,7 +240,8 @@ describe('request errors at the HTTP and GraphQL boundary (e2e)', () => {
   });
 
   it('answers a parse error with 400 and a fixed message that keeps the location', async () => {
-    const response = await postRaw({ query: `{ locations(city: "${SENTINEL}" ` });
+    // graphql-js would answer: Syntax Error: Expected Name, found String "<sentinel>".
+    const response = await postRaw({ query: `{ "${SENTINEL}" }` });
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({
@@ -258,7 +259,10 @@ describe('request errors at the HTTP and GraphQL boundary (e2e)', () => {
   it.each([
     ['a number for a String argument', `{ locations(city: ${SENTINEL_ID}) { id } }`],
     ['a string for an input object', `{ activityForecast(input: "${SENTINEL}") { __typename } }`],
-    ['an undeclared input field', `{ activityForecast(input: { ${SENTINEL}: 1 }) { __typename } }`],
+    [
+      'a number for an input object field',
+      `{ activityForecast(input: { city: ${SENTINEL_ID} }) { __typename } }`,
+    ],
   ])(
     'answers a validation error on an input literal (%s) with a fixed message',
     async (_name, query) => {
@@ -278,15 +282,19 @@ describe('request errors at the HTTP and GraphQL boundary (e2e)', () => {
     },
   );
 
-  it('keeps the message of a validation error about a name', async () => {
-    const response = await postRaw({ query: '{ unknownField }' });
+  it.each([
+    ['an unknown field', '{ unknownField }', 'Cannot query field "unknownField" on type "Query".'],
+    [
+      'an undeclared input field',
+      '{ activityForecast(input: { cty: "Peniche" }) { __typename } }',
+      'Field "cty" is not defined by type "ForecastInput". Did you mean "city"?',
+    ],
+  ])('keeps the message of a validation error about a name (%s)', async (_name, query, message) => {
+    const response = await postRaw({ query });
 
     expect(response.status).toBe(400);
     expect(response.body.errors).toEqual([
-      expect.objectContaining({
-        message: 'Cannot query field "unknownField" on type "Query".',
-        extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
-      }),
+      expect.objectContaining({ message, extensions: { code: 'GRAPHQL_VALIDATION_FAILED' } }),
     ]);
   });
 
@@ -301,7 +309,8 @@ describe('request errors at the HTTP and GraphQL boundary (e2e)', () => {
     expect(response.body).toEqual({
       errors: [
         {
-          message: 'Set operationName to the name of one operation in the query.',
+          message:
+            "Set operationName to one of the query's named operations, or omit it when the query has a single operation.",
           extensions: { code: 'OPERATION_RESOLUTION_FAILURE' },
         },
       ],

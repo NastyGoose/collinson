@@ -189,6 +189,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - graphql-js stops after 50 variable errors and adds one more with no code, which was masked as `INTERNAL_SERVER_ERROR`. It is now `BAD_USER_INPUT`. Its fixed text is the only way to recognize it.
   - Nest's route-not-found 404 repeated the path. The filter recognizes it by rebuilding Nest's exact message from the request, so a deliberate 404 from a future controller keeps its message. The filter is named `RequestErrorFilter` again, since it now covers more than request bodies.
   - Run against the previous mapper and filter, exactly the 7 new E2E cases failed.
+- **Self-review findings, fixed:** the `operationName` message told a client with an anonymous query to set a name, so it now says to omit it in that case. An undeclared input field was redacted although it names only the field, so it now keeps graphql-js's message, which includes the "Did you mean" hint, as the docs already said. The parse-error test could never have found its marker in graphql-js's message, so it now sends a query where graphql-js would quote it.
 
 ## Scope cuts
 
