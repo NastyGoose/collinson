@@ -21,8 +21,10 @@ const PUBLIC_CODES: ReadonlySet<unknown> = new Set<string>([
 ]);
 
 /**
- * Nodes of an input literal written in the query. A validation error on one of
- * them (ValuesOfCorrectTypeRule) prints the literal back in its message.
+ * Nodes of an input value written in the query. A validation error on one of
+ * them (ValuesOfCorrectTypeRule) prints the value back in its message. An
+ * undeclared field inside an input object is reported on its OBJECT_FIELD node
+ * and names only the field, so like other errors about names it keeps its text.
  */
 const INPUT_LITERAL_KINDS: ReadonlySet<Kind> = new Set([
   Kind.STRING,
@@ -33,7 +35,6 @@ const INPUT_LITERAL_KINDS: ReadonlySet<Kind> = new Set([
   Kind.ENUM,
   Kind.LIST,
   Kind.OBJECT,
-  Kind.OBJECT_FIELD,
 ]);
 
 /**
@@ -121,7 +122,11 @@ function fixedErrorFor(formatted: GraphQLFormattedError, error: unknown): FixedE
         ? { code, message: 'An input value in the query does not match its expected type.' }
         : null;
     case ApolloServerErrorCode.OPERATION_RESOLUTION_FAILURE:
-      return { code, message: 'Set operationName to the name of one operation in the query.' };
+      return {
+        code,
+        message:
+          "Set operationName to one of the query's named operations, or omit it when the query has a single operation.",
+      };
     case INTERNAL_ERROR:
       return nodes === undefined && formatted.message === TOO_MANY_VARIABLE_ERRORS
         ? {

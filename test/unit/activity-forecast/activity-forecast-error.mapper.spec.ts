@@ -72,28 +72,43 @@ describe('formatGraphQLError', () => {
   });
 
   it.each([
-    [Kind.STRING, `String cannot represent a non string value: "${SENTINEL}"`],
-    [Kind.OBJECT_FIELD, `Field "${SENTINEL}" is not defined by type "ForecastInput".`],
-  ])('replaces the message of a validation error on an input literal (%s)', (kind, message) => {
-    const query =
-      kind === Kind.STRING
-        ? LITERAL_OPERATION
-        : `{ activityForecast(input: { ${SENTINEL}: 1 }) { __typename } }`;
-    const error = new GraphQLError(message, { nodes: [firstNode(query, kind)] });
-    const formatted = {
-      message,
-      locations: [{ line: 1, column: 19 }],
-      extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
-    };
+    [Kind.STRING, LITERAL_OPERATION, `String cannot represent a non string value: "${SENTINEL}"`],
+    [
+      Kind.INT,
+      '{ activityForecast(input: { city: 987654321 }) { __typename } }',
+      'String cannot represent a non string value: 987654321',
+    ],
+  ])(
+    'replaces the message of a validation error on an input literal (%s)',
+    (kind, query, message) => {
+      const error = new GraphQLError(message, { nodes: [firstNode(query, kind)] });
+      const formatted = {
+        message,
+        locations: [{ line: 1, column: 19 }],
+        extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
+      };
 
-    const result = formatGraphQLError(formatted, error);
+      const result = formatGraphQLError(formatted, error);
 
-    expect(result).toStrictEqual({
-      message: 'An input value in the query does not match its expected type.',
-      locations: [{ line: 1, column: 19 }],
-      extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
+      expect(result).toStrictEqual({
+        message: 'An input value in the query does not match its expected type.',
+        locations: [{ line: 1, column: 19 }],
+        extensions: { code: 'GRAPHQL_VALIDATION_FAILED' },
+      });
+      expect(JSON.stringify(result)).not.toContain(SENTINEL);
+      expect(JSON.stringify(result)).not.toContain('987654321');
+    },
+  );
+
+  it('keeps the message of an undeclared input field, which names only the field', () => {
+    const error = new GraphQLError('Field "cty" is not defined by type "ForecastInput".', {
+      nodes: [
+        firstNode('{ activityForecast(input: { cty: "x" }) { __typename } }', Kind.OBJECT_FIELD),
+      ],
     });
-    expect(JSON.stringify(result)).not.toContain(SENTINEL);
+    const formatted = { message: error.message, extensions: { code: 'GRAPHQL_VALIDATION_FAILED' } };
+
+    expect(formatGraphQLError(formatted, error)).toBe(formatted);
   });
 
   it('replaces the message of a parse error and keeps its location', () => {
@@ -116,7 +131,8 @@ describe('formatGraphQLError', () => {
     const formatted = { message, extensions: { code: 'OPERATION_RESOLUTION_FAILURE' } };
 
     expect(formatGraphQLError(formatted, new GraphQLError(message))).toStrictEqual({
-      message: 'Set operationName to the name of one operation in the query.',
+      message:
+        "Set operationName to one of the query's named operations, or omit it when the query has a single operation.",
       extensions: { code: 'OPERATION_RESOLUTION_FAILURE' },
     });
   });
