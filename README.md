@@ -30,7 +30,7 @@ npm run build
 npm run start:prod         # GraphQL endpoint at http://localhost:3000/graphql
 ```
 
-npm 11 may warn during `npm ci` that it skipped the install scripts of `prisma` and `@prisma/engines`. Setup, migrations and tests work without them. `npm run start` (compile and run) and `npm run start:dev` (watch mode) also work. The defaults in `.env.example` match `compose.yaml`. If port 5432 is already in use, set `POSTGRES_PORT` in `.env` and change the port in both URLs. If `DATABASE_URL` is missing or invalid, the app stops at startup and names the key to fix. Logs are JSON lines on stdout at `info`; set `LOG_LEVEL` (`fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`) to change that.
+npm 11 may warn during `npm ci` that it skipped the install scripts of `prisma` and `@prisma/engines`. Setup, migrations and tests work without them. `npm run start` (compile and run) and `npm run start:dev` (watch mode) also work. The defaults in `.env.example` match `compose.yaml`. If port 5432 is already in use, set `POSTGRES_PORT` in `.env` and change the port in both URLs. If `DATABASE_URL` is missing or invalid, the app stops at startup and names the key to fix. Logs are JSON lines on stdout at `info`; set `LOG_LEVEL` (`fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`) to change that. GraphQL introspection is on unless `NODE_ENV` is `production`; set `GRAPHQL_INTROSPECTION` to `true` or `false` to choose explicitly.
 
 Check that it is up, from a second terminal:
 
@@ -140,11 +140,11 @@ If Open-Meteo fails, the source shows `STALE` with the stored snapshot's `fetche
 
 Errors carry a stable `extensions.code`:
 
-- `BAD_USER_INPUT` for an invalid selector or filter. When the service rejects the input, `extensions.field` names it, or is null when the selector as a whole is wrong. GraphQL's own variable errors, such as a missing `input`, use the same code without `field`.
+- `BAD_USER_INPUT` for an invalid selector or filter. When the service rejects the input, `extensions.field` names it, or is null when the selector as a whole is wrong. GraphQL's own variable errors, such as a missing `input` or a number where a string belongs, use the same code and HTTP 400 with a fixed message, `Variable "$input" is missing or does not match type "ForecastInput!".` They have no `field`, because GraphQL reports the position inside the variable only as text.
 - `GEOCODING_UNAVAILABLE` when a city search needs Open-Meteo geocoding and it fails.
 - `STORAGE_UNAVAILABLE` when PostgreSQL cannot serve the request.
 
-GraphQL's own request errors keep their codes, such as `GRAPHQL_VALIDATION_FAILED`. Any other failure returns `INTERNAL_SERVER_ERROR` with a generic message, and the details go only to the server log.
+GraphQL's own request errors keep their codes, such as `GRAPHQL_VALIDATION_FAILED`. A body that is not valid JSON gets HTTP 400 with `{"errors":[{"message":"The request body is not valid JSON.","extensions":{"code":"BAD_REQUEST"}}]}`. Error messages and `LocationNotFound` never repeat the submitted city, ID or variable values, parser output or provider text. Validation errors still quote the query itself. Any other failure returns `INTERNAL_SERVER_ERROR` with a generic message, and the details go only to the server log.
 
 ## Tests and checks
 

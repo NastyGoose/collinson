@@ -13,6 +13,7 @@ Run one NestJS process in TypeScript. Separate location resolution, forecast acq
 ## Amendments
 
 - 2026-11-15 (ARC-48), Decision: an error without a documented or GraphQL request code, such as a bug or an unexpected database error, reaches clients as `INTERNAL_SERVER_ERROR` with a generic message and no stack trace; the server log keeps the details. Location and storage errors are mapped to their codes by an exception filter, so these expected outcomes are not logged as server errors.
+- 2026-11-16 (ARC-59), Decision: error and not-found messages never reflect what the client sent. A request body that does not parse, such as malformed JSON, gets the same 4xx status and a GraphQL-shaped body with a fixed message and `BAD_REQUEST`, Apollo's code for malformed requests. Before, it got Nest's default answer with the parser's text, which can quote the body. A variable coercion error keeps `BAD_USER_INPUT`, its locations and HTTP 400, but its message names only the variable and its declared type. It has no `field`, because graphql-js keeps the path inside the variable only in the message text. Errors raised by the location input checks keep their messages and `field`. `LocationNotFound` messages are fixed and leave out the city, country filter and ID. GraphQL introspection is set explicitly by `GRAPHQL_INTROSPECTION`. It is on by default for local development and tests, and off when `NODE_ENV` is `production`. Validation errors (`GRAPHQL_VALIDATION_FAILED`) still quote the query document, inline literals included.
 
 ## Consequences
 
