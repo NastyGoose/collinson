@@ -26,7 +26,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Question:** how fresh must the data be? **Assumption:** reuse a snapshot for six hours, and fall back to one up to 24 hours old when a refresh fails, as long as it covers the requested dates.
 - **AI draft, changed by the author:** the first draft recommended SQLite as the simplest storage for a single-instance take-home and listed PostgreSQL as the alternative. The author chose **PostgreSQL with Prisma** ([ADR 0002](adr/0002-postgresql-prisma-persistence.md)). The draft is kept as [assessment-specifications.md](assessment-specifications.md).
 - **AI draft, changed in the Technical Design:** the draft proposed code-first GraphQL with an exported schema. The Technical Design published the exact SDL instead, so the implementation went schema-first (see 2026-11-14).
-- **Marine spike (ARC-43):** the first attempt to call the marine API was blocked by host resolution and browser access. A later browser run returned all four test locations. Inland Warsaw and Madrid got grid points within 5 km, a full set of timestamps and **wave arrays that were entirely null**. "The response has data" therefore does not mean "the place has surf". Surfing now needs usable wave values plus a grid point within 25 km. The four samples do not calibrate the 25 km cap, and [ADR 0004](adr/0004-marine-data-eligibility.md) records it as an assumption.
+- **Marine spike (ARC-43, [evidence](design-evidence.md#marine-coverage-arc-43-adr-0004)):** the first attempt to call the marine API was blocked by host resolution and browser access. A later browser run returned all four test locations. Inland Warsaw and Madrid got grid points within 5 km, a full set of timestamps and **wave arrays that were entirely null**. "The response has data" therefore does not mean "the place has surf". Surfing now needs usable wave values plus a grid point within 25 km. The four samples do not calibrate the 25 km cap, and [ADR 0004](adr/0004-marine-data-eligibility.md) records it as an assumption.
 
 ### 2026-11-14 — Baseline (ARC-44, [#1](https://github.com/NastyGoose/collinson/pull/1))
 
@@ -73,7 +73,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Check on the tests:** to show the scenarios could catch real defects, five deliberate breaks were made in `src/` and then reverted. They were: the date window taken after location resolution, no follow-up refresh, no coalescing, an exclusive 24-hour limit, and sampling in UTC. Each one failed at least one scenario.
 - **Review finding, fixed:** the PR description said "eight runs in a row", but only four of those runs were at the final commit. It was corrected to the runs that actually happened.
 
-### 2026-11-15 — Submission readiness (ARC-50)
+### 2026-11-15 — Submission readiness (ARC-50, [#7](https://github.com/NastyGoose/collinson/pull/7))
 
 - **Decision:** a shorter README. The ticket-by-ticket status text was replaced by a four-step overview and a list of assumptions and limits, and the detail stays in the ADRs. SPEC-05 asks for a short README.
 - **Decision:** the GraphQL examples are request files in `examples/`, so the README can be run as written in bash and PowerShell. The optional live smoke check (`npm run smoke:live`) sends the same files.
@@ -81,7 +81,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Self-review finding, fixed:** on a fresh database the by-ID example returned `LocationNotFound`, because an ID resolves only after a search has stored it. The clean-checkout run had passed only because it sent the Madrid search first. The README now says to send it first, and the smoke script states the order and fails on any example file it has no check for. The same review found three README sentences that overstated the code (the 2 MiB cap, `extensions.field`, the purge size), plus the same 2 MiB slip in an ADR 0003 amendment.
 - **Decision:** CI is one GitHub Actions job against a PostgreSQL service container. **Rejected:** one job per test tier, which would install dependencies three times for a small repository. The live smoke check is a manual workflow and never blocks a PR (SPEC-05).
 
-### 2026-11-15 — Structure rules and architect (ARC-52)
+### 2026-11-15 — Structure rules and architect (ARC-52, [#8](https://github.com/NastyGoose/collinson/pull/8))
 
 - **Question:** after submission readiness, the author asked for the code to be split into more readable files. The requirements were: tests out of `src/`, types and constants in fixed, domain-named places, role postfixes on file names, and logging as a shared layer rather than a logger per class. **Decision:** write the target down and make it checkable first. The refactor itself, and documentation pages for the merged PRs, are separate tickets.
 - **AI proposal, accepted:** [ADR 0006](adr/0006-module-layout-and-naming.md) uses singular domain folders, `<domain>.<role>.ts` names with a `.logic` role for pure functions, and `nestjs-pino` injected through a shared logger module. The author's own example used singular names (`forecast`, `activity`).
@@ -91,7 +91,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 - **Architect dry run, three gaps fixed:** the first audit by the new agent found three gaps in the first rule set. First, the ban on importing another domain's `.logic` files would also have blocked the shared calendar. It would have left the resolver no allowed way to reach activity scoring, because pure code cannot offer a Nest service. The `.logic` files of `calendar` and `activity` are now their public API. Second, activity code could import another domain's service or repository unnoticed; a new `pure-no-io-domains` rule closes that. Third, `health` was configured as a domain although the ADR calls it infrastructure. A probe for each gap failed before the fix and passed after it.
 - **Review findings, fixed:** a fresh-context review of the whole branch found that excluding `src/generated` from the scan also hid imports *of* the Prisma client from the purity rules. The folder is now only not followed. The self-review before merge found that a spec under `src/` with no imports slipped past the spec rule, so a rule for import-less specs was added. Both were probed before and after the fix. The same reviews corrected two ADR sentences that claimed more than the checker does.
 
-### 2026-11-15 — PR documentation skills (ARC-53)
+### 2026-11-15 — PR documentation skills (ARC-53, [#9](https://github.com/NastyGoose/collinson/pull/9))
 
 - **Question:** what should a reviewer get with every PR? **Decision (author):** two private pages written in plain language, linked from the PR. *Changes notes* say what changed, why, and what it affects. *Testing notes* say how each acceptance criterion was proven, with evidence. The readers are the author and the reviewer, not the assessor, so the pages are private artifacts rather than committed files.
 - **Options:** (A) two new skills, with `changes-notes` replacing the existing `pr-walkthrough`; (B) two new skills next to `pr-walkthrough`; (C) one skill that publishes both pages. **The author chose A.** B would have kept two "what changed" pages that drift apart. C would rewrite the changes page every time tests were rerun. `changes-notes` keeps `pr-walkthrough`'s gathering and claim checks. Its criteria table and verify-by-hand steps moved to `testing-notes`.
@@ -116,7 +116,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - `task-explainer` keeps one `artifacts.md` line per page;
   - two unwrapped lines are now wrapped.
 
-### 2026-11-15 — Applying ADR 0006 (ARC-54, ARC-56)
+### 2026-11-15 — Applying ADR 0006 (ARC-54, ARC-56, [#10](https://github.com/NastyGoose/collinson/pull/10))
 
 - **Inventory:** the architect agent audited `main` in its own context and found 53 deviations: 50 medium and 3 low (naming only). All 100 baseline entries were import edges from the 18 specs under `src/`. The other findings were mixed files, role-less names, plural folders and per-class loggers.
 - **Question:** one PR or several? **Decision (AI, under the ticket's own rule):** two subtickets under ARC-54. The layout ([ARC-56](https://linear.app/archiview/issue/ARC-56/dev-apply-the-adr-0006-module-layout-and-remove-the-structure-baseline)) changes no behaviour. The logger ([ARC-57](https://linear.app/archiview/issue/ARC-57/dev-use-the-shared-nestjs-pino-logger-by-injection)) adds a dependency and changes the log format, so it is verified on its own. The order is forced: editing a spec while it still sits under `src/` adds a new import edge to the baseline, so the specs move first and the logger follows.
@@ -133,7 +133,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - Specs that tested both a client and its parser, or both the filter and the error formatter, were split along their existing `describe` blocks.
 - **Check:** after the rename, a probe file for each rule (activity importing a forecast client, `@nestjs/common` or `node:fs`; calendar importing another folder; location importing forecast internals; infrastructure importing a domain; a spec under `src/`) made `lint:structure` fail with the expected rule names. Without that probe, rule regexes left on the old folder names would have passed silently. Test counts are unchanged: 320 unit, 43 integration and 35 E2E.
 
-### 2026-11-15 — Shared logger (ARC-57)
+### 2026-11-15 — Shared logger (ARC-57, [#11](https://github.com/NastyGoose/collinson/pull/11))
 
 - **Reviews of ARC-56 first:** before this part started, two sub-agents reviewed the layout PR.
   - The architect found 8 low findings, all fixed in that PR: wording, one misplaced type, the composition root, and a dead rule exemption.
@@ -163,7 +163,7 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
   - Every line logged during a GraphQL request carried the whole request, headers included, because pino-http binds it to the per-request logger even with access lines off. `quietReqLogger` keeps only the request id.
   - The same review found that `bufferLogs` does nothing in a Nest testing module, so the test apps no longer pass it.
 
-### 2026-11-16 — GraphQL Tools advisory (ARC-58)
+### 2026-11-16 — GraphQL Tools advisory (ARC-58, [#12](https://github.com/NastyGoose/collinson/pull/12))
 
 - **Finding:** `npm audit` reported one high advisory in the runtime tree. [GHSA-c4qx-w738-7hr3](https://github.com/advisories/GHSA-c4qx-w738-7hr3) is a prototype-pollution bug in `mergeIncrementalResult` that affects `@graphql-tools/utils` 10.10.1 to 12.0.1 and is fixed in 12.0.2. The lockfile held two copies. Apollo Server 5.5.2 brought in 12.0.1, the affected version, and `@nestjs/graphql` 14.2.1 brought in 12.1.0, which is patched. The application never calls `mergeIncrementalResult`, so the bug was a dependency exposure, not a demonstrated reachable path.
 - **Constraint:** no supported upgrade existed. 5.5.2 is Apollo Server's latest release, and it is the release that added the cap. [apollographql/apollo-server#8232](https://github.com/apollographql/apollo-server/pull/8232) holds `@graphql-tools/merge` below 9.2.5, `schema` below 10.1.2 and `utils` below 12.0.2. Those versions depend on `@whatwg-node/promise-helpers` 2, which requires Node 22.15 or later, and the cap keeps fresh installs on Node 20 working. Apollo plans to lift the cap in v6, which drops Node 20. That work is still a draft ([#8233](https://github.com/apollographql/apollo-server/pull/8233)). This project requires Node 24 (`engines`, CI), so the reason for the cap does not apply here.
