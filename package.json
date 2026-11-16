@@ -13,10 +13,10 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "oxlint --type-aware src/ test/ scripts/",
+    "lint": "oxlint --type-aware src/ test/ scripts/ tools/",
     "lint:structure": "depcruise src test --config .dependency-cruiser.cjs",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" prisma.config.ts \"scripts/**/*.mjs\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" prisma.config.ts \"scripts/**/*.mjs\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" prisma.config.ts \"scripts/**/*.mjs\" \"tools/**/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" prisma.config.ts \"scripts/**/*.mjs\" \"tools/**/*.mjs\"",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
     "db:migrate": "prisma migrate deploy",
@@ -27,7 +27,8 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:integration": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config test/jest-integration.config.js",
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config test/jest-e2e.config.js",
-    "smoke:live": "node scripts/smoke-live.mjs"
+    "smoke:live": "node scripts/smoke-live.mjs",
+    "review:console": "node tools/review-console/serve.mjs"
   },
   "dependencies": {
     "@apollo/server": "5.5.2",

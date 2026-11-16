@@ -1,0 +1,1195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collinson review console</title>
+<style>
+/* Optional reviewer aid, not part of the service. Layout: control panel on the left, one step at a time on the right. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --ink: #18212f; --muted: #5b6778; --line: #d9dfe8;
+  --accent: #1d5fd1; --accent-ink: #ffffff; --accent-soft: #e4edfc;
+  --good: #17794a; --good-soft: #dff3e8; --warn: #9a6200; --warn-soft: #fbeed3;
+  --bad: #b3261e; --bad-soft: #fbe3e1; --code: #eef1f6; --note: #fff8e1; --note-line: #ecd98f;
+  --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10151d; --panel: #171e29; --ink: #e6ebf2; --muted: #9aa7b9; --line: #2a3443;
+    --accent: #6ea4ff; --accent-ink: #0b1220; --accent-soft: #1b2b47;
+    --good: #5fd39a; --good-soft: #143326; --warn: #f0be5a; --warn-soft: #3a2c0e;
+    --bad: #ff8a80; --bad-soft: #3d1917; --code: #1d2633; --note: #2b2714; --note-line: #5a4f1f;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.danger { border-color: var(--bad); color: var(--bad); }
+button[disabled] { opacity: .55; cursor: progress; }
+code, pre, .mono { font-family: var(--mono); font-size: 13px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); padding: 12px; border-radius: 6px; overflow: auto; margin: 0; max-height: 420px; }
+h1, h2, h3 { margin: 0; line-height: 1.25; text-wrap: balance; }
+.label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+.app { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: 100%; }
+.side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow-y: auto; }
+.side h1 { font-size: 17px; }
+.box { display: flex; flex-direction: column; gap: 8px; }
+.status { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; font-size: 13px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.dot.up { background: var(--good); } .dot.down { background: var(--bad); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.steps button { width: 100%; text-align: left; border: 0; background: none; display: grid; grid-template-columns: 22px 1fr auto; gap: 6px; padding: 6px 8px; border-radius: 6px; font-size: 14px; }
+.steps button:hover { background: var(--code); }
+.steps button[aria-current="true"] { background: var(--accent-soft); font-weight: 600; }
+.steps .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.steps .done .n { color: var(--good); }
+.try input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); min-width: 0; }
+.try .row input:first-child { flex: 1; } .try .row input:last-child { width: 64px; flex: none; text-transform: uppercase; }
+.keys { font-size: 12px; color: var(--muted); }
+kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--bg); }
+
+.main { overflow-y: auto; padding: 24px 32px 64px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.head h2 { font-size: 26px; }
+.brief { border-left: 3px solid var(--accent); padding: 2px 0 2px 14px; color: var(--muted); font-style: italic; max-width: 75ch; }
+.cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card.say { background: var(--note); border-color: var(--note-line); }
+.card ul, .card ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.card p { margin: 0; }
+.actions { display: flex; flex-direction: column; gap: 8px; }
+.action { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: baseline; }
+.action small { color: var(--muted); }
+.confirm { display: inline-flex; gap: 6px; align-items: center; }
+
+.result { min-height: 60px; }
+.result .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chip { display: inline-flex; gap: 6px; align-items: center; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; background: var(--code); white-space: nowrap; }
+.chip.good { background: var(--good-soft); color: var(--good); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.chip.accent { background: var(--accent-soft); color: var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.scroll { overflow-x: auto; }
+.acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.act h3 { font-size: 14px; }
+.day { display: grid; grid-template-columns: 26px 86px 1fr 34px; gap: 8px; align-items: center; padding: 3px 0; font-size: 13px; }
+.day .rank { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.day .bar { height: 8px; border-radius: 4px; background: var(--code); overflow: hidden; }
+.day .bar i { display: block; height: 100%; background: var(--accent); }
+.day .score { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.day.na { color: var(--muted); } .day.na .rank { color: var(--muted); }
+.reason { grid-column: 2 / -1; color: var(--muted); font-size: 12px; margin-top: -2px; }
+.log td { font-size: 12px; }
+details > summary { cursor: pointer; font-weight: 600; }
+.qa details { border-top: 1px solid var(--line); padding: 8px 0; }
+.qa details:first-of-type { border-top: 0; }
+.qa p { margin: 6px 0 0; color: var(--muted); max-width: 80ch; }
+.tech details { border-top: 1px solid var(--line); padding: 8px 0; }
+.tech details:first-of-type { border-top: 0; }
+.tech .body { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 4px; max-width: 90ch; }
+.tech .body p { margin: 0; } .tech .body pre { max-height: none; }
+.tech .bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tech .bar button { font-size: 12px; padding: 2px 8px; }
+a { color: var(--accent); } a code { color: inherit; }
+.diagram { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.diagram svg { display: block; margin: 0 auto; max-width: none; font-family: var(--sans); }
+.diagram figcaption { color: var(--muted); font-size: 13px; max-width: 90ch; }
+.d-box { fill: var(--panel); stroke: var(--muted); stroke-width: 1.2; }
+.d-box.accent { fill: var(--accent-soft); stroke: var(--accent); }
+.d-box.pure { stroke-dasharray: 6 4; }
+.d-box.ext { fill: var(--code); }
+.d-box.good { fill: var(--good-soft); stroke: var(--good); }
+.d-box.warn { fill: var(--warn-soft); stroke: var(--warn); }
+.d-box.bad { fill: var(--bad-soft); stroke: var(--bad); }
+.d-title { fill: var(--ink); font-size: 14px; font-weight: 600; text-anchor: middle; }
+.d-line { fill: var(--muted); font-size: 12.5px; text-anchor: middle; }
+.d-label { fill: var(--muted); font-size: 12px; font-style: italic; }
+.d-arrow { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+.d-head { fill: var(--muted); }
+.d-curve { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.d-dot { fill: var(--accent); }
+.d-axis { stroke: var(--muted); stroke-width: 1; }
+.d-grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; } .d-grid.solid { stroke-dasharray: none; }
+.d-ctitle { fill: var(--ink); font-size: 12.5px; font-weight: 600; }
+.d-tick { fill: var(--muted); font-size: 11.5px; } .d-tick.end { text-anchor: end; } .d-tick.mid { text-anchor: middle; }
+.d-rname { fill: var(--ink); font-size: 15px; font-weight: 700; }
+.d-thead { fill: var(--accent-soft); stroke: var(--muted); stroke-width: 1.2; }
+.d-tname { fill: var(--ink); font: 600 13px var(--mono); }
+.d-col { fill: var(--ink); font: 12px var(--mono); } .d-col.pk { font-weight: 700; }
+.d-type { fill: var(--muted); font: 12px var(--mono); }
+.d-mark { fill: var(--accent); font: 700 10.5px var(--sans); text-anchor: end; letter-spacing: .04em; }
+.empty { color: var(--muted); }
+.nav { display: flex; justify-content: space-between; }
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; height: auto; } .side { border-right: 0; border-bottom: 1px solid var(--line); }
+  .main { padding: 16px; } .cols, .acts { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" aria-label="Control panel">
+    <div class="box">
+      <span class="label">Control panel</span>
+      <h1>Collinson review console</h1>
+    </div>
+
+    <div class="box">
+      <span class="label">Service</span>
+      <div class="status">
+        <span class="dot" id="dot-service"></span><span>GraphQL service</span><span id="st-service" class="mono">…</span>
+        <span class="dot" id="dot-db"></span><span>PostgreSQL</span><span id="st-db" class="mono">…</span>
+      </div>
+      <div class="row"><span class="mono" id="st-endpoint" style="color:var(--muted);font-size:12px"></span></div>
+      <div class="row"><button id="btn-status">Check now</button></div>
+    </div>
+
+    <div class="box">
+      <span class="label">Steps</span>
+      <ol class="steps" id="steps"></ol>
+      <div class="row">
+        <button id="btn-prev">← Previous</button>
+        <button id="btn-next" class="primary">Next →</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <span class="label">Technical reference</span>
+      <ol class="steps" id="refs"></ol>
+    </div>
+
+    <form class="box try" id="try">
+      <span class="label">Try any place</span>
+      <div class="row">
+        <input id="try-city" placeholder="City or town" aria-label="City or town" autocomplete="off">
+        <input id="try-cc" placeholder="CC" maxlength="2" aria-label="Country code" autocomplete="off">
+      </div>
+      <button type="submit">Rank seven days</button>
+    </form>
+
+    <div class="box">
+      <span class="label">View</span>
+      <div class="row">
+        <button id="btn-clear">Clear results</button>
+      </div>
+      <div class="keys"><kbd>←</kbd> <kbd>→</kbd> change step</div>
+    </div>
+  </aside>
+
+  <main class="main"><div class="wrap" id="stage"></div></main>
+</div>
+
+<script>
+const FORECAST = `query Forecast($input: ForecastInput!) {
+  activityForecast(input: $input) {
+    __typename
+    ... on ActivityForecast {
+      location { id name region country latitude longitude timezone }
+      startDate
+      endDate
+      scoringVersion
+      activities {
+        activity
+        days { date availability score rank reason unavailableCode }
+      }
+      sources { source freshness fetchedAt failureCode reason }
+      attribution
+    }
+    ... on AmbiguousLocation {
+      candidates { id name region country timezone }
+    }
+    ... on LocationNotFound {
+      message
+    }
+  }
+}`;
+const LOCATIONS = `query Locations($city: String!, $countryCode: String) {
+  locations(city: $city, countryCode: $countryCode) {
+    id name region country latitude longitude timezone
+  }
+}`;
+const forecast = (input) => JSON.stringify({ query: FORECAST, variables: { input } });
+const NAZARE_ID = '2265552';
+
+const REPO = 'https://github.com/NastyGoose/collinson/blob/main/';
+const src = (path, line) => `<a href="${REPO}${path}${line ? '#L' + line : ''}" target="_blank" rel="noopener"><code>${path}${line ? ':' + line : ''}</code></a>`;
+const code = (text) => `<pre>${text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</pre>`;
+const why = (text) => `<p><b>Why:</b> ${text}</p>`;
+const cost = (text) => `<p><b>Trade-off:</b> ${text}</p>`;
+
+
+const STEPS = [
+  {
+    title: 'The brief and this walkthrough',
+    brief: 'What we’re most interested in is how you work through problem: the decisions you make, the assumptions you commit to, and how you get there.',
+    say: [
+      'The service is a NestJS GraphQL API. It takes a city or town, gets weather from Open-Meteo, stores it in PostgreSQL and ranks the next seven days for skiing, surfing, outdoor and indoor sightseeing. It has no front end.',
+      'This console is an optional reviewer aid and is not part of the service. The request buttons send plain GraphQL POSTs to the running service, the same requests as the files in <code>examples/</code>, so you can also send them with curl from the README. Three kinds of button go to the console’s own server instead: showing database rows, clearing stored weather and running the tests.',
+      'Steps 1 to 9 show the service answering live. Steps 10 and 11 cover how the work was done, the assumptions and what was cut, which the brief ranks first.',
+      'Each step has an “Under the hood” card with the code, the motivation and the trade-offs. The technical reference in the side panel has the diagrams, technology choices, schema and known weak spots in one place.',
+      'Start by checking that the service and the database are up.',
+    ],
+    point: [
+      'The <code>health</code> answer: <code>service</code> and <code>database</code> are reported separately.',
+      'The requirement map below: each line of the brief has a step here.',
+      'The architecture diagram: one process, three domains, two external systems.',
+    ],
+    extra: `<div class="scroll"><table>
+      <tr><th>The brief asks for</th><th>Where to see it</th></tr>
+      <tr><td>A city or town as input</td><td>Steps 2 and 3</td></tr>
+      <tr><td>The next 7 days ranked for four activities</td><td>Steps 4 and 5</td></tr>
+      <tr><td>Open-Meteo data, persisted, with a refresh policy</td><td>Step 6</td></tr>
+      <tr><td>Node.js and GraphQL, no front end</td><td>Every step is one GraphQL request</td></tr>
+      <tr><td>A focused submission that reasons well</td><td>Steps 7 to 9</td></tr>
+      <tr><td>How you worked, assumptions, what was cut</td><td>Steps 10 and 11</td></tr>
+    </table></div>`,
+    actions: [
+      { label: 'Check health', raw: JSON.stringify({ query: '{ health { service database } }' }), note: 'The smallest proof that the endpoint and PostgreSQL work.' },
+    ],
+    qa: [
+      ['The brief says not to build a front end. What is this page?', 'A reviewer aid in tools/review-console, outside src/. It was added after the service was finished and forwards requests to it unchanged. The submission is the API, the README and the notes; the engineering notes record why this tool exists.'],
+      ['Why NestJS?', 'It was my choice (ADR 0001). The work splits into location, forecast and scoring modules, and dependency injection lets tests replace the clock and the HTTP fetch, so every test is deterministic and offline.'],
+      ['Why schema-first GraphQL?', 'The Technical Design publishes the exact SDL, so the SDL is the contract. The AI’s first draft proposed code-first, which would have made the contract a generated file. That change is in the engineering notes for 14 November.'],
+    ],
+  },
+  {
+    title: 'A city or town as input',
+    brief: 'Build a backend service that takes a city or town…',
+    say: [
+      'A place name is not a place: there are dozens of Springfields. The first design question was what to do with a name that matches several places.',
+      'The <code>locations</code> query returns up to five candidates. Each has a stable Open-Meteo ID, a region and an IANA time zone.',
+      'Every candidate is stored in PostgreSQL. If you run the search twice, the second answer comes from the stored search, which is kept for 24 hours.',
+    ],
+    point: [
+      'Five Springfields in different states, with different time zones.',
+      'The response time of the second run in the run log.',
+      'The <code>id</code> field. It is what a client passes back later.',
+      'The schema diagram: the three location tables and their keys.',
+    ],
+    actions: [
+      { label: 'Search “Springfield”, US', raw: JSON.stringify({ query: LOCATIONS, variables: { city: 'Springfield', countryCode: 'US' } }), note: 'examples/locations.json' },
+      { label: 'Show stored searches and locations', db: true, note: 'Rows in location_searches and locations.' },
+    ],
+    qa: [
+      ['Why at most five candidates?', 'It is enough for a caller to choose from and keeps the answer small. The service asks Open-Meteo for ten and keeps the first five valid, distinct ones, so one bad record does not push out a real fifth candidate.'],
+      ['What if geocoding is down?', 'A city search returns a GraphQL error with the code GEOCODING_UNAVAILABLE. A stored ID still works, because it resolves from PostgreSQL without geocoding. An expired search is not served during an outage; that was a deliberate limit.'],
+      ['How are two spellings of one city handled?', 'The text is trimmed, NFKC-normalized and lowercased, and the same normalized text is used as the cache key and sent to the provider. A review found the first version sent the raw text, which could ask the provider a different question than the key suggested.'],
+    ],
+  },
+  {
+    title: 'Ambiguous names are never guessed',
+    brief: 'Where you’d normally check an open question with a product manager, note the question and the assumption you went with.',
+    say: [
+      'This was one of the open questions: if a caller asks for a forecast for “Madrid”, should the service pick one?',
+      'The assumption I committed to is that it never picks silently. The forecast query returns a typed <code>AmbiguousLocation</code> with the candidates, and the caller repeats the query with one ID.',
+      'It is a union type, not an error. Ambiguity is a normal outcome, so a client handles it by type.',
+      'Run the Madrid request, then click a candidate to finish the flow by ID.',
+    ],
+    point: [
+      '<code>__typename: AmbiguousLocation</code> in the raw response.',
+      'Madrid, Madridejos, Madridanos: similar names, different places.',
+      'The follow-up by ID does not call geocoding at all.',
+    ],
+    actions: [
+      { label: 'Forecast for “Madrid”, ES', raw: forecast({ city: 'Madrid', countryCode: 'ES' }), note: 'examples/forecast-ambiguous.json. Then click a candidate.' },
+      { label: 'Forecast for a place that does not exist', raw: forecast({ city: 'Qqzzxxyy' }), note: 'Returns LocationNotFound, also a type and not an error.' },
+    ],
+    qa: [
+      ['Why not return the most populous match?', 'It would be right most of the time and silently wrong the rest. A wrong city gives a confident, wrong ranking. Returning candidates costs the client one more request.'],
+      ['Why a union instead of GraphQL errors?', 'Errors are for requests the service could not serve. “Several places match” and “nothing matches” are valid answers, and the union makes the client handle each case explicitly.'],
+      ['Why does the not-found message not repeat the city?', 'Error and not-found messages never echo submitted text. That was hardening work in ARC-59 after a probe showed input being reflected.'],
+    ],
+  },
+  {
+    title: 'Seven days ranked for four activities',
+    brief: '…ranks how good the next 7 days will be for each of these activities: skiing, surfing, outdoor sightseeing, indoor sightseeing.',
+    say: [
+      'This is the main request. Nazaré in Portugal is a surf town, so all four activities have data.',
+      'I read “rank the next seven days for each activity” as four separate rankings of the same seven dates. Days are not compared across activities.',
+      '“Next seven days” starts tomorrow, in the location’s own time zone. Today is left out because part of it is already over and it would be compared against full days.',
+      'Each day has a score from 0 to 100, a rank and a sentence that cites the inputs behind the score.',
+      'Indoor sightseeing rises as outdoor conditions get worse. Compare the best indoor day with the worst outdoor day.',
+    ],
+    point: [
+      'Four groups, seven days each, rank 1 first.',
+      '<code>startDate</code> is tomorrow in Europe/Lisbon.',
+      'The reason line under each day: real numbers and the factor that lowers the score most.',
+      'Skiing scores 0 with the reason “No snow on the ground”. It is a measured zero, not missing data.',
+      '<code>scoringVersion: v1</code> and the Open-Meteo attribution in the raw response.',
+      'The request flow diagram: the seven stages behind this one query.',
+    ],
+    actions: [
+      { label: 'Forecast for Nazaré, PT', raw: forecast({ city: 'Nazaré', countryCode: 'PT' }), note: 'examples/forecast-by-city.json' },
+    ],
+    qa: [
+      ['Why does the window start tomorrow?', 'Seven complete local days. A partial today would be scored on fewer hours than the others. The service asks Open-Meteo for eight days to cover it. This is the 13 November entry in the engineering notes.'],
+      ['Why 09:00 to 18:00?', 'The score is for a generic daytime visitor. Each date uses nine local hours. Precipitation is summed from 10:00 to 18:00 because each Open-Meteo value covers the hour before its timestamp.'],
+      ['What about time zones and DST?', 'The request time is frozen before anything else, and the dates are derived in the location’s IANA zone from the provider’s Unix timestamps. E2E scenarios cover local midnight and both DST changes.'],
+      ['Why do ties not share a rank?', 'Ties on the rounded score are broken by the earlier date, so ranks are always 1 to 7 and the output is deterministic.'],
+    ],
+  },
+  {
+    title: 'Scores you can explain',
+    brief: 'The decisions you make, the assumptions you commit to, and how you get there.',
+    say: [
+      'The brief gives no formula, so the formula is an assumption. I made it simple, deterministic and versioned, and wrote it down in ADR 0005.',
+      'Val Thorens is a ski resort at 2,300 m. The same function gives skiing a real score there, and surfing is unavailable.',
+      'Skiing is 50% snow depth, 30% temperature with the best at −5 °C, and 20% wind. No snow on the ground means 0.',
+      'The scoring code is a pure function with no I/O. It takes the date window and the normalized weather and returns the four rankings. A lint rule in CI stops it importing anything else.',
+      'The scores describe weather suitability. They are not safety advice and say nothing about lifts or beaches.',
+    ],
+    point: [
+      'The scoring diagram: every curve is drawn to scale from the constants in the code.',
+      'Skiing reasons cite snow depth, temperature and wind.',
+      'Surfing: seven unavailable days with a code, still seven entries.',
+      'The same location answers all four activities from two independent sources.',
+    ],
+    actions: [
+      { label: 'Forecast for Val Thorens, FR', raw: forecast({ city: 'Val Thorens', countryCode: 'FR' }), note: 'A ski resort. Live values change with the weather.' },
+    ],
+    qa: [
+      ['How were the weights picked?', 'They are illustrative v1 heuristics, and the ADR says so. The focus was that they are explainable, tested at the breakpoints and versioned, so they can be calibrated later without breaking stored data.'],
+      ['Why store weather and not scores?', 'Scores are derived. Storing normalized weather means a scoring change applies immediately to stored snapshots, and the scoring function stays pure.'],
+      ['How is rounding handled?', 'Scores are trimmed to nine decimals before rounding half up, so a float error such as 89.4999999999 rounds as 89.5.'],
+      ['Why is the ranking not left to a language model?', 'The ranking has to be deterministic and testable: the same weather must always give the same order, and every score must be checkable by hand against the tables in ADR 0005.'],
+    ],
+  },
+  {
+    title: 'Persisted weather and refresh',
+    brief: 'Persist it rather than calling the API on every request. How you model, store, and refresh it is part of the problem.',
+    say: [
+      'This is the part of the brief with the most design in it.',
+      'Model: atmospheric and marine weather are two independent sources. Each is one snapshot row per location, with the normalized hourly series in JSONB, the fetch time and the coverage bounds.',
+      'Refresh: on demand. A snapshot is reused while it is under six hours old and still covers all seven dates. There is no background worker.',
+      'Failure: if a refresh fails, a snapshot up to 24 hours old is served and marked STALE. A failed or invalid refresh never replaces a good snapshot.',
+      'To see it, clear the stored weather for Nazaré, request it cold, then request it again.',
+      'The second answer is several times faster and <code>fetchedAt</code> is identical: Open-Meteo was not called.',
+    ],
+    point: [
+      'The run log: response time cold against warm.',
+      '<code>fetchedAt</code> on both sources is the same in both runs.',
+      'The database rows: one ATMOSPHERIC and one MARINE row for Nazaré, 192 hours each.',
+      'The refresh diagram: age and coverage are checked together, because a fresh snapshot can still miss the new seventh date after local midnight.',
+    ],
+    actions: [
+      { label: 'Clear stored weather for Nazaré', reset: NAZARE_ID, note: 'Deletes its rows from forecast_snapshots in your local database. Run step 4 first so Nazaré is stored.' },
+      { label: 'Request Nazaré (cold)', raw: forecast({ locationId: NAZARE_ID }), note: 'Calls Open-Meteo for both sources and stores the result.' },
+      { label: 'Request Nazaré again (warm)', raw: forecast({ locationId: NAZARE_ID }), note: 'Served from PostgreSQL.' },
+      { label: 'Show stored snapshots', db: true, note: 'Rows in forecast_snapshots.' },
+    ],
+    qa: [
+      ['Why PostgreSQL? The AI suggested SQLite.', 'The first AI draft recommended SQLite as the simplest option. I chose PostgreSQL with Prisma (ADR 0002): durable location identity, atomic upserts, JSONB for the hourly series and checked-in migrations. The draft is kept in the repository so the change is visible.'],
+      ['Why six hours and 24 hours?', 'Forecast models update a few times a day, so six hours keeps data current without calling on every request. 24 hours is a bound on how old a fallback may be before “unavailable” is the more honest answer. Both are stated assumptions.'],
+      ['What if two requests arrive at once?', 'Refreshes for the same location and source are merged within one process, so Open-Meteo is called once. Across several instances each could call once. Cross-process locking was cut because the brief is a single local service, and the README says so.'],
+      ['Why no background refresh?', 'It needs a scheduler and a list of locations worth refreshing. Request-driven refresh meets the requirement with less to operate. It is listed as a scope cut.'],
+      ['How do you know the stale path works?', 'E2E scenarios run against a fake Open-Meteo with a fixed clock: cold, warm, restart reuse, bounded stale fallback, invalid replacements and partial failure. The source was also broken on purpose five times to check the scenarios fail.'],
+    ],
+  },
+  {
+    title: 'Partial data stays in the answer',
+    brief: 'A focused submission that reasons well beats an exhaustive one.',
+    say: [
+      'Madrid is inland. What should surfing say?',
+      'A spike before the design showed something unexpected. Open-Meteo’s marine API answers for inland cities with a nearby grid point and a full timeline, but every wave value is null. So “the response has data” does not mean “the place has surf”.',
+      'The rule became: surfing needs usable wave values and a grid point within 25 km. Otherwise the day is unavailable with a code and a reason.',
+      'The answer always has four groups of seven days. An unavailable day has a null score and rank. One source failing never removes the other activities.',
+    ],
+    point: [
+      'Surfing: seven days with <code>MISSING_MARINE_INPUTS</code>.',
+      'The MARINE source is still <code>FRESH</code>. The data is current, it just has no waves.',
+      'Outdoor and indoor sightseeing are ranked normally.',
+      'This request used a stored ID, so geocoding was not called.',
+    ],
+    actions: [
+      { label: 'Forecast for Madrid by stored ID', raw: forecast({ locationId: '3117735' }), note: 'examples/forecast-by-id.json. Run step 3 first on a fresh database, so the ID is stored.' },
+    ],
+    qa: [
+      ['Why 25 km?', 'It is an assumption, and ADR 0004 says so. The spike tested four locations, all within 25 km, so it does not calibrate the limit. It should be checked against real surf spots before anyone relies on it.'],
+      ['Why not drop surfing from the answer?', 'A fixed shape is easier for a client: always four activities and seven days, with a typed reason when a day cannot be scored.'],
+      ['What happens when Open-Meteo is down?', 'Each source reports FRESH, STALE or UNAVAILABLE with a failure code. With no usable snapshot, its days become unavailable. A source failure is never a GraphQL error.'],
+    ],
+  },
+  {
+    title: 'Errors are a contract',
+    brief: 'Node.js and GraphQL.',
+    say: [
+      'Bad input gets a stable code that a client can branch on, and <code>field</code> names the input that was wrong.',
+      'Exactly one of city and locationId is required. Sending both is rejected.',
+      'Messages are fixed text. They never repeat what the caller sent, and unexpected failures become INTERNAL_SERVER_ERROR with the detail only in the server log.',
+      'Even a body that is not JSON gets a GraphQL-shaped answer, so the endpoint has one error shape.',
+    ],
+    point: [
+      '<code>extensions.code</code> and <code>extensions.field</code> in each answer.',
+      'HTTP 200 for domain validation, HTTP 400 for requests GraphQL itself rejects.',
+    ],
+    actions: [
+      { label: 'Both city and locationId', raw: forecast({ city: 'Nazaré', locationId: '1' }), note: 'BAD_USER_INPUT, field null.' },
+      { label: 'City too short', raw: forecast({ city: 'x' }), note: 'BAD_USER_INPUT, field city.' },
+      { label: 'Three-letter country code', raw: forecast({ city: 'Nazaré', countryCode: 'PRT' }), note: 'BAD_USER_INPUT, field countryCode.' },
+      { label: 'Missing variable', raw: JSON.stringify({ query: FORECAST, variables: {} }), note: 'HTTP 400 with a fixed message.' },
+      { label: 'Body that is not JSON', raw: '{not json', note: 'HTTP 400, BAD_REQUEST.' },
+    ],
+    qa: [
+      ['Where did this hardening come from?', 'From reviews. A probe showed a Prisma error passing through with raw SQL text, and another showed input reflected in messages. Both are in the engineering notes with the fix.'],
+      ['Is there authentication or rate limiting?', 'No. Both are listed as out of scope in the README. In production they would sit at the gateway.'],
+      ['Is introspection on in production?', 'It is off by default when NODE_ENV is production, and GRAPHQL_INTROSPECTION sets it explicitly.'],
+    ],
+  },
+  {
+    title: 'Tests and delivery',
+    brief: 'The service, plus a short README: what you built, how to run it, and your assumptions.',
+    say: [
+      'There are three test tiers. Unit tests cover scoring, calendar and DST edges with no database or network.',
+      'Integration and E2E tests run against PostgreSQL. Each run creates its own throwaway database, applies the checked-in migrations and drops it, so running them here does not touch your development data.',
+      'All tests use a fixed clock and a fake Open-Meteo, so they are deterministic and offline.',
+      'CI runs format, lint, typecheck and all three tiers on every pull request, then migrates an empty database, boots the built app and checks health.',
+      'The README was verified from a clean checkout. That found a real bug: the by-ID example failed on a fresh database.',
+    ],
+    point: [
+      'The test summary lines at the end of the output.',
+      'The structure check: module boundaries are enforced, with no list of known violations.',
+    ],
+    actions: [
+      { label: 'Run the unit tests', run: 'unit', note: 'npm test. About 5 seconds.' },
+      { label: 'Run the E2E scenarios', run: 'e2e', note: 'npm run test:e2e. Needs PostgreSQL. About 20 seconds.' },
+      { label: 'Check module boundaries', run: 'structure', note: 'npm run lint:structure' },
+    ],
+    qa: [
+      ['How can tests the AI wrote be trusted?', 'Two ways. Reviews by separate sub-agents with fresh context, and deliberate breaks: the source was changed in five ways and at least one scenario failed for each.'],
+      ['Do the tests call the real Open-Meteo?', 'No. A live smoke check exists as an optional script and a manual workflow. It never blocks a pull request.'],
+      ['Why one CI job?', 'One job per tier would install dependencies three times for a small repository.'],
+    ],
+  },
+  {
+    title: 'How the work was done',
+    brief: 'However your thinking actually happened… show it to us. We want to follow your reasoning and see the calls you made, not read a write-up. Don’t polish it.',
+    say: [
+      'I worked with Claude Code as the main pair. The AI drafted the specifications, wrote most of the code and tests and reviewed its own pull requests. I chose the framework, the database and the scope, and approved every merge.',
+      'The order was: five specifications, a spike on the marine API, a technical design, then one ticket per pull request.',
+      'The record is in the repository, and it is the place to follow the reasoning. This console only summarizes it. <code>docs/engineering-notes.md</code> is a dated log of questions, assumptions, alternatives and where the AI was overruled. The ADRs hold the six main decisions.',
+      'Three entries are a quick way in: SQLite changed to PostgreSQL, the marine spike that changed the surfing rule, and the PR description that claimed eight test runs when four were at the final commit.',
+      'CLAUDE.md and the skills in <code>.claude/</code> are the instructions the AI worked under. They are part of the submission.',
+    ],
+    point: [
+      `${src('docs/engineering-notes.md')}: the working log, entry by entry.`,
+      `${src('docs/adr/README.md')}: six decisions traced to the brief.`,
+      'The merged pull requests: one ticket each, with the review findings.',
+    ],
+    extra: `<div class="scroll"><table>
+      <tr><th>What to open</th><th>What it shows</th></tr>
+      <tr><td>${src('docs/engineering-notes.md')}</td><td>Dated decisions, AI corrections, changes of mind, scope cuts</td></tr>
+      <tr><td>${src('docs/adr/README.md')}</td><td>Framework, storage, date window and refresh, marine rule, scoring, layout</td></tr>
+      <tr><td>${src('docs/assessment-specifications.md')}</td><td>The first AI draft, kept for comparison</td></tr>
+      <tr><td>${src('CLAUDE.md')}, ${src('.claude/README.md')}</td><td>The rules and workflow the AI followed</td></tr>
+      <tr><td>Pull requests</td><td>One ticket per PR, with review findings</td></tr>
+    </table></div>`,
+    actions: [],
+    qa: [
+      ['What did the AI get wrong?', 'It recommended SQLite and code-first GraphQL, installed ESLint and plain Jest before reading the framework template, rethrew domain errors so they logged as server errors, and overstated test runs in a PR description. Each is in the notes with the correction.'],
+      ['Where was the AI overruled?', 'Storage, schema-first, enforcing the structure rules in CI and not only in a document, and every out-of-scope finding, where the choice was between implement now, draft a ticket and drop.'],
+      ['How was AI-written code checked before merging?', 'Each ticket had a written plan, small commits, and reviews by separate sub-agents for spec, code and security, tests and docs. Findings were triaged with me before the pull request was opened, and I approved each merge. The engineering notes list the findings per ticket.'],
+      ['Is the record polished after the fact?', 'The notes were condensed from logs kept while the work happened, and the first draft is still in the repository. Review findings that corrected overstated claims are recorded too.'],
+    ],
+  },
+  {
+    title: 'Assumptions, cuts and next steps',
+    brief: 'If you cut something or ran out of time, a line on why is more useful than the thing itself.',
+    say: [
+      'Assumptions I committed to: the window starts tomorrow in local time, days are ranked within each activity, the score is for a generic visitor, ambiguous names return candidates, and snapshots live six hours with a 24-hour stale limit.',
+      'Cut on purpose: front end, accounts, booking, resort and beach lookup, personal preferences, history, background refresh, authentication, rate limiting and hosting.',
+      'Known limits: refreshes are merged within one process only, and the scoring weights and the 25 km marine limit are not calibrated.',
+      'The natural next steps are calibrating the scoring against real conditions, a cross-process refresh lock, a background refresh for popular locations, and authentication and rate limiting in front. The “Trade-offs and weak spots” page in the technical reference lists them in order.',
+    ],
+    point: [
+      `${src('README.md')}, “Assumptions and limits”.`,
+      `${src('docs/engineering-notes.md')}, “Scope cuts”.`,
+      'The “Trade-offs and weak spots” page in the technical reference.',
+    ],
+    actions: [],
+    qa: [
+      ['What changed along the way?', 'Storage moved from the AI’s SQLite draft to PostgreSQL, GraphQL from code-first to schema-first, timeouts became retryable once, and the marine spike turned “has data” into “has usable wave values within 25 km”. Each change is dated in the engineering notes or an ADR amendment.'],
+      ['How would this scale?', 'The service is stateless apart from the in-process refresh merge. Several instances work today and may each call Open-Meteo once for the same refresh. A PostgreSQL advisory lock or a queue would close that.'],
+      ['Can it be used commercially?', 'Open-Meteo’s free API is for non-commercial use, under CC BY 4.0. Every response carries the attribution. A product would need their paid plan.'],
+      ['What is the weakest part?', 'The scoring calibration. It is deterministic and explained, but the weights are assumptions and have not been checked against real visitor behaviour.'],
+    ],
+  },
+];
+
+/* ---------- technical deep dives ---------- */
+const TECH = {
+  0: [
+    ['The whole request in a few lines', `<p>${src('src/activity-forecast/activity-forecast.resolver.ts', 36)} is the only place that knows the order of work. It holds no provider, storage or scoring logic.</p>
+      ${code(`const requestedAt = this.clock.now();              // 1. freeze the instant
+const resolution = await this.locations.resolve(input); // 2. city or stored ID
+if (resolution.kind !== 'resolved') return toUnresolvedResult(resolution);
+const window  = forecastWindow(requestedAt, location.timezone); // 3. seven local dates
+const weather = await this.forecasts.getWeather(location, window); // 4. two sources
+const scores  = scoreActivities({ window, atmospheric, marine });  // 5. pure function
+return toActivityForecast(location, weather, scores);   // 6. map to the SDL`)}
+      ${why('Each step can be tested alone, and the instant is frozen before any slow call, so a geocoding call that crosses local midnight cannot shift the dates.')}`],
+    ['Module layout and enforced boundaries', `<p>One folder per domain: <code>location</code> (geocoding, search cache, stored IDs), <code>forecast</code> (provider adapters, snapshots, refresh), <code>activity</code> (pure scoring), <code>activity-forecast</code> (GraphQL entry point). <code>calendar</code> is pure date logic. Infrastructure is <code>clock</code>, <code>config</code>, <code>http</code>, <code>prisma</code>, <code>health</code>, <code>logger</code>.</p>
+      <p>Files are named <code>&lt;domain&gt;.&lt;role&gt;.ts</code>: <code>.resolver</code>, <code>.service</code>, <code>.repository</code>, <code>.client</code>, <code>.mapper</code>, <code>.logic</code>, <code>.types</code>, <code>.constants</code>, <code>.errors</code>.</p>
+      <p>${src('.dependency-cruiser.cjs')} checks the boundaries in CI: no circular imports, activity and calendar import no framework, I/O or Node core code, domains never import the GraphQL layer, infrastructure never imports a domain, and one domain cannot reach another's repository or client.</p>
+      ${why('A rule in a document drifts. A rule in CI fails the build. There is no list of known violations.')}
+      ${cost('More files and some ceremony for a 3,500-line service. The refactor to this layout was its own two tickets after the features were done.')}`],
+    ['Configuration fails at startup', `<p>${src('src/config/config.logic.ts')} validates <code>DATABASE_URL</code>, <code>PORT</code>, <code>LOG_LEVEL</code> and <code>GRAPHQL_INTROSPECTION</code> once. It collects every problem and exits with a message that names each key.</p>
+      ${why('A missing URL should stop the process with a clear message, not fail on the first request.')}`],
+  ],
+  1: [
+    ['Input normalization', `<p>${src('src/location/location-input.logic.ts')}: the city is NFC-normalized, whitespace is collapsed, and length is counted in Unicode code points (2 to 120). Invisible format characters do not count towards the minimum, so an invisible city is rejected. Control characters and unpaired surrogates are rejected and never sent upstream.</p>
+      <p>The cache key is the NFKC-normalized, lowercased text, and the same text is sent to the provider. The country code must be two letters and is upper-cased.</p>
+      ${why('Two spellings that share a cache key must ask the provider the same question. A review found the first version sent the raw text.')}`],
+    ['Search cache: three tables and their keys', `${code(`locations                PK (id)                      -- Open-Meteo ID as TEXT
+location_searches        PK (query, country_code)     -- + INDEX (expires_at)
+location_search_results  PK (query, country_code, position)
+                         INDEX (location_id)
+                         FK search   ON DELETE CASCADE
+                         FK location ON DELETE RESTRICT`)}
+      <ul><li><b>Composite primary key on the search.</b> A lookup is always by the normalized query and country, so the key is the lookup. No surrogate ID is needed.</li>
+      <li><b><code>country_code</code> is <code>''</code>, not NULL, for “no filter”.</b> PostgreSQL treats NULLs as distinct in a unique key, so a nullable key column could not be upserted.</li>
+      <li><b><code>position</code> in the results key</b> keeps the provider's order, which is the order candidates are shown in.</li>
+      <li><b>Index on <code>expires_at</code></b> serves the purge, which selects expired rows in expiry order.</li>
+      <li><b>Index on <code>location_id</code></b> backs the foreign key. PostgreSQL does not index the referencing column on its own.</li>
+      <li><b>CASCADE from search to results, RESTRICT from results to location.</b> Deleting a search removes its result rows. A location that a search still points at cannot be deleted by accident.</li></ul>
+      ${cost('Locations are never deleted, so a stored ID keeps working after its search expires. The table grows with every distinct place ever found.')}`],
+    ['Saving a search: one transaction, stable lock order', `<p>${src('src/location/location.repository.ts', 55)}. The provider is called first. Then one transaction upserts the search row, upserts each location, deletes the old result rows and inserts the new ones.</p>
+      ${code(`await tx.locationSearch.upsert(...)            // locks the search key first
+for (const location of [...candidates].sort(compareById))
+  await tx.location.upsert(...)                // fixed ID order
+await tx.locationSearchResult.deleteMany({ where: key })
+await tx.locationSearchResult.createMany(...)`)}
+      ${why('Two concurrent searches can share locations (Madrid and Madridejos). Upserting them in a fixed ID order means both transactions take row locks in the same order, so they cannot deadlock. No provider I/O runs inside the transaction, so a slow provider never holds database locks.')}
+      ${cost('Up to five sequential upserts per uncached search. That is a few milliseconds and only on a cache miss.')}`],
+    ['Purging expired searches', `<p>${src('src/location/location.repository.ts', 99)} runs after the save commits, as raw SQL:</p>
+      ${code(`DELETE FROM location_searches
+WHERE (query, country_code) IN (
+  SELECT query, country_code FROM location_searches
+  WHERE expires_at <= $now ORDER BY expires_at LIMIT 100
+  FOR UPDATE SKIP LOCKED)`)}
+      ${why('Purging inside the save transaction was rejected: two saves of different expired keys could deadlock. With SKIP LOCKED the purge never waits on a concurrent save. It is best effort, and a failed purge only logs a warning.')}
+      ${cost('It only runs on an uncached search, 100 rows at a time. There is no scheduled job, so an idle service keeps its expired rows.')}`],
+    ['The provider call', `<p>${src('src/location/open-meteo-geocoding.client.ts')} asks for ten records and ${src('src/location/open-meteo-geocoding.mapper.ts', 24)} keeps the first five that are valid and distinct. A record needs a positive integer ID, a name, a country, coordinates in range and a valid IANA time zone.</p>
+      <p>Matches are cached for 24 hours and a genuine empty result for one hour. A provider failure is never cached and leaves an existing entry as it was.</p>
+      ${why('Asking for more than five means one unusable record does not hide a real fifth candidate. A short TTL on empty results lets a newly added place appear within the hour.')}`],
+  ],
+  2: [
+    ['Resolution is a discriminated union', `<p>${src('src/location/location.service.ts', 51)} returns one of three kinds:</p>
+      ${code(`{ kind: 'resolved',  location }
+{ kind: 'ambiguous', candidates }
+{ kind: 'not_found', message }`)}
+      <p>Zero candidates is not found, one is resolved, several is ambiguous. The mapper turns each kind into a member of the GraphQL union, and <code>__resolveType</code> reads the <code>__typename</code> the mapper set.</p>
+      ${why('TypeScript forces the resolver to handle every case before it can touch <code>location</code>. The GraphQL union gives clients the same guarantee.')}`],
+    ['The stored-ID path', `<p>An ID is checked against <code>/^[1-9][0-9]{0,15}$/</code> first. Anything else returns <code>LocationNotFound</code> without a database read. A valid ID is one primary-key lookup on <code>locations</code> and never calls geocoding.</p>
+      ${why('IDs are opaque to clients, so a malformed ID is “not found”, not a validation error. The ID is stored as TEXT for the same reason: nothing should do arithmetic on it.')}
+      ${cost('An ID only resolves after a search has stored it. On a fresh database a client cannot start from an ID. The README says so.')}`],
+    ['Exactly one selector, validated in code', `<p>${src('src/location/location-input.logic.ts')}: both <code>city</code> and <code>locationId</code>, or neither, is rejected with <code>field: null</code>. A country filter with an ID is rejected with <code>field: "countryCode"</code>.</p>
+      ${why('Validation in code gives a stable code and names the field at fault.')}
+      ${cost('The schema alone does not express “exactly one”. A <code>@oneOf</code> input would, and is the alternative to name if asked.')}`],
+  ],
+  3: [
+    ['Freezing the request instant', `<p>${src('src/clock/clock.service.ts')} is an abstract <code>Clock</code> with one method, <code>now()</code>. Services take it by injection and never call <code>new Date()</code>. The resolver reads it once, before location resolution.</p>
+      ${why('Tests replace the clock to freeze request time, cache expiry and freshness. In production it removes a real bug: a request that starts at 23:59 local and finishes after midnight would otherwise rank the wrong dates.')}`],
+    ['Local dates without a date library', `<p>${src('src/calendar/calendar.logic.ts', 5)}: the instant is formatted in the location's IANA zone with <code>Intl.DateTimeFormat</code> (<code>en-CA</code> for <code>YYYY-MM-DD</code>, <code>h23</code> so midnight is 00). Formatters are cached per zone. Adding days is done on the ISO date through <code>Date.UTC</code>, independent of any zone.</p>
+      ${why('Node ships the time-zone database, so DST and half-hour zones are handled with no dependency. The folder imports nothing else, which is enforced in CI.')}
+      ${cost('It depends on the ICU data in the Node build. A date library would give a richer API that this service does not need.')}`],
+    ['Coverage is checked on local hours, not on counts', `<p>${src('src/calendar/calendar.logic.ts', 26)}: every provider timestamp (Unix seconds) is converted in the location's zone. A snapshot covers the window only if there is <b>exactly one</b> instant at each required local hour on all seven dates. Atmospheric needs 09:00 to 18:00, marine 09:00 to 17:00.</p>
+      ${why('An hour skipped or repeated by a DST change shows up as zero or two instants and fails the check. Counting 192 hours would not catch that. Coverage is separate from whether the values are null.')}
+      <p>The service asks Open-Meteo for eight days (${src('src/forecast/forecast.constants.ts', 12)}), today plus seven, so a request near local midnight still has all of tomorrow.</p>`],
+    ['Ranking', `<p>${src('src/activity/activity-scoring.logic.ts', 224)}: scored days are sorted by rounded score descending, then by date ascending, and get ranks 1 to n. Unavailable days follow in date order with null score and rank.</p>
+      ${why('Sorting on the rounded score means two days that display the same number are a tie, and the earlier date wins. The output is the same on every run.')}`],
+  ],
+  4: [
+    ['Piecewise-linear scoring', `<p>Each factor maps a measurement to 0–100 through a small table of breakpoints, with straight lines between them and clamping outside (${src('src/activity/activity-formula.logic.ts', 27)}). The tables are constants in ${src('src/activity/activity-scoring.constants.ts')}:</p>
+      ${code(`OUTDOOR_TEMPERATURE_C = [[0, 0], [20, 100], [35, 0]]
+OUTDOOR_PRECIPITATION_MM = [[0, 100], [8, 0]]
+SKI_SNOW_DEPTH_M = [[0, 0], [0.3, 100]]
+SKI_TEMPERATURE_C = [[-20, 0], [-5, 100], [5, 0]]
+SURF_WAVE_HEIGHT_M = [[0, 0], [1.2, 100], [3, 0]]
+SURF_WAVE_PERIOD_S = [[4, 0], [12, 100]]`)}
+      ${why('A reader can check any score by hand, and calibration means editing a table, not code.')}
+      ${cost('Straight lines are a crude model of comfort. The weights and breakpoints are assumptions and are not fitted to data.')}`],
+    ['Which aggregate for which field', `<ul><li><b>Mean</b> temperature and snow depth: a typical value for the day.</li>
+      <li><b>Sum</b> of precipitation: total rain is what a visitor feels.</li>
+      <li><b>Maximum</b> wind: one very windy hour matters more than a calm average.</li>
+      <li><b>Median</b> wave height and period: one odd hour does not move it.</li></ul>
+      <p>Each uses nine local hours. Precipitation is read at 10:00–18:00 and the rest at 09:00–17:00, because an Open-Meteo precipitation value covers the hour before its timestamp.</p>`],
+    ['Order of checks for one day', `<p>${src('src/activity/activity-scoring.logic.ts', 149)} checks, in this order: the source is available, every field has nine usable samples, and for surfing the marine grid point is valid and within 25 km. Atmospheric failures are reported before marine ones.</p>
+      <p>A sample is usable when it is a finite number, and not negative for snow, precipitation, wind and waves. A measured zero is a value. A null is missing.</p>
+      ${why('A fixed order gives one deterministic code per day. Missing data makes the day unavailable; nothing is interpolated or guessed.')}
+      ${cost('One missing hour out of nine makes the whole day unavailable. Tolerating gaps would rank more days and would need a rule for how many gaps are acceptable.')}`],
+    ['Rounding, the skiing zero and the indoor formula', `${code(`roundScore = Math.floor(Number(unrounded.toFixed(9)) + 0.5)
+skiing     = meanSnowDepth === 0 ? 0 : weighted
+indoor     = 50 + 0.5 * (100 - unroundedOutdoor)`)}
+      <ul><li>Trimming to nine decimals first means a computed 89.49999999999999 rounds as the 89.5 it stands for.</li>
+      <li>With no snow on the ground skiing is 0 whatever the temperature and wind.</li>
+      <li>Indoor sightseeing runs from 50 to 100. It uses the unrounded outdoor score, so rounding is applied once.</li></ul>`],
+    ['Explanations come from the same numbers', `<p>Each score keeps its weighted components. ${src('src/activity/activity-formula.logic.ts', 92)} picks the factor that costs the most weighted points, and the reason sentence names it. A day whose small losses round to 100 is called “close to ideal”, and “every factor is ideal” is used only when nothing is lost.</p>
+      ${why('The sentence cannot disagree with the score because both are built from one object. A review found the first wording overclaimed on near-perfect days.')}`],
+    ['Purity is enforced, not promised', `<p><code>scoreActivities</code> takes the window and two normalized forecasts (null when a source is unavailable) and returns four rankings. The <code>activity</code> folder may not import Nest, Prisma, pino, Node core modules or another domain's service, repository or client. <code>npm run lint:structure</code> fails if it does.</p>
+      ${why('Scoring can be unit-tested with plain objects, and it can be replaced or versioned without touching storage.')}`],
+  ],
+  5: [
+    ['Table design: one row per location and source', `${code(`forecast_snapshots
+  PK (location_id, source, schema_version)
+  fetched_at, coverage_start, coverage_end   TIMESTAMPTZ(3)
+  requested_latitude/longitude, returned_latitude/longitude
+  timezone TEXT
+  units  JSONB   -- {"temperature_2m": "°C", ...}
+  hourly JSONB   -- {"time": [unix s], "series": {"<variable>": [number|null]}}
+  FK location_id -> locations ON DELETE CASCADE`)}
+      ${why('The service always reads a whole eight-day series for one location and source, and replaces it whole. One JSONB row makes that one primary-key read and one atomic write. A snapshot is about 1 to 3 kB.')}
+      ${cost('No SQL queries by hour and no history: a refresh overwrites the previous forecast. A row per hour would allow analytics, with 192 rows to replace in a transaction on each refresh. Historical analytics is out of scope.')}`],
+    ['Why there are no secondary indexes on snapshots', `<p>Every read is <code>findUnique</code> on the full primary key (${src('src/forecast/forecast.repository.ts', 22)}). Freshness is decided in the application after that read, so <code>fetched_at</code> is never filtered on in SQL. The JSONB is never searched, so it has no GIN index.</p>
+      ${why('An index that no query uses only slows writes. A background refresh job that looked for old rows would be the reason to add an index on <code>fetched_at</code>.')}`],
+    ['schema_version is part of the key', `<p>Each source has a <code>schemaVersion</code> in its spec (${src('src/forecast/forecast.constants.ts', 20)}), next to the variables and units it requests.</p>
+      ${why('Changing the requested variables or units means bumping the version. Old rows are then simply not found and the next request refreshes, with no data migration and no risk of scoring a row in the old shape.')}
+      ${cost('Rows of an old version stay in the table until someone deletes them.')}`],
+    ['Fresh means recent and covering', `${code(`isFresh = isAgeWithin(age, 6h) && covers(snapshot, window)
+isAgeWithin(ageMs, limitMs) = ageMs >= 0 && ageMs < limitMs`)}
+      <p>${src('src/forecast/forecast.service.ts', 174)}. A snapshot fetched at 23:00 local is one hour old at midnight and no longer covers the new seventh date, so it is refreshed. A snapshot dated in the future, after a clock change or a manual edit, is never trusted.</p>`],
+    ['One refresh per location and source', `${code(`const key = location.id + ':' + source;
+const running = this.inFlight.get(key);
+if (running !== undefined) return running;      // join it
+const refresh = this.runRefresh(...).finally(() => {
+  if (this.inFlight.get(key) === refresh) this.inFlight.delete(key);
+});
+this.inFlight.set(key, refresh);`)}
+      <p>${src('src/forecast/forecast.service.ts', 109)}. Ten simultaneous requests for a cold city make one Open-Meteo call per source. <code>runRefresh</code> re-reads the row first, because a refresh that finished between the caller's read and its join may already have replaced it.</p>
+      ${cost('The map lives in one process. Two instances could each call Open-Meteo once. Closing that needs a PostgreSQL advisory lock or a queue, which was cut for a single local service.')}`],
+    ['A caller that joined a refresh for another window', `<p>${src('src/forecast/forecast.service.ts', 84)}. Two requests either side of local midnight have different windows. The later one may join a refresh that was validated against the earlier window. Each caller therefore checks coverage for its own window, and may start one follow-up refresh.</p>
+      <p>The follow-up runs only if the joined refresh succeeded or failed on coverage. A timeout or rate limit is not fixed by asking again.</p>
+      ${why('Without this, a request just after midnight could be answered UNAVAILABLE although a fresh fetch would have covered it.')}`],
+    ['Stale fallback', `<p>After a failed refresh the service looks at the newest snapshot it has and serves it as <code>STALE</code> if it is at most 24 hours old and still covers the window. The response carries the failure code and the original <code>fetchedAt</code>. Otherwise the source is <code>UNAVAILABLE</code>. Source failures never throw.</p>
+      ${why('A day-old forecast is still useful and the client is told its age. Beyond that, saying “unavailable” is more honest than ranking on old data.')}`],
+    ['Validate, then replace atomically', `<p>The provider answer is parsed and validated (${src('src/forecast/open-meteo-forecast.mapper.ts', 33)}) and checked for coverage before anything is written. The write is one <code>INSERT … ON CONFLICT DO UPDATE</code> (${src('src/forecast/forecast.repository.ts', 41)}).</p>
+      ${why('A reader sees the previous row or the new one, never a mix, and a bad payload cannot replace a good snapshot. The provider call happens before the statement, so no network I/O holds a database lock.')}
+      <p>Rows are also validated when read back. An unreadable row, which only a manual edit could produce, is treated as missing and gets replaced.</p>`],
+    ['Bounded provider requests', `<p>${src('src/http/json-request.service.ts', 24)} is shared by geocoding and both forecast sources:</p>
+      <ul><li>Five-second timeout per attempt with <code>AbortSignal.timeout</code>.</li>
+      <li>One retry, only after a timeout, a network error or a 5xx.</li>
+      <li>429, other 4xx, invalid JSON and oversized answers fail at once.</li>
+      <li>Bodies are streamed and cut at 2 MiB; a normal forecast is about 20 kB.</li>
+      <li>The status is checked before the size, so a large 5xx error page is still retried.</li></ul>
+      <p>It uses Node's built-in <code>fetch</code> through an injected <code>HTTP_FETCH</code> token, which tests replace with fixtures.</p>
+      ${cost('Worst case, a cold request waits about 10 s for geocoding and 10 s for weather. There is no circuit breaker or backoff.')}`],
+  ],
+  6: [
+    ['The marine grid check', `<p>${src('src/activity/activity-marine-grid.logic.ts', 11)}: the marine request sets <code>cell_selection=sea</code>, so Open-Meteo answers for the nearest sea grid cell. The service stores both the requested and the returned coordinates and computes the haversine distance on a sphere of the mean Earth radius. Up to and including 25 km is eligible.</p>
+      ${cost('Distance to a model cell says nothing about coastline, beach access or safety, and the 25 km limit is not calibrated. ADR 0004 states both.')}`],
+    ['All-null waves are a valid, stored snapshot', `<p>For an inland city the marine API returns full timestamps and null waves. That payload passes validation and is stored as <code>FRESH</code>. Surfing days then fail the measurement check with <code>MISSING_MARINE_INPUTS</code>.</p>
+      ${why('If it were rejected, every request for an inland city would call the marine API again. Storing it means Madrid costs one marine call per six hours, like any other city.')}`],
+    ['Two sources, fetched in parallel, failing alone', `<p>${src('src/forecast/forecast.service.ts', 55)} runs both sources with <code>Promise.all</code>. Each returns a result with its own freshness and never throws for a provider failure. Only a database failure propagates, as <code>STORAGE_UNAVAILABLE</code>.</p>
+      <p>Scoring receives null for an unavailable source. Skiing and both sightseeing activities need only the atmospheric source. Surfing needs both, because it uses atmospheric wind.</p>`],
+    ['Day codes, in the order they are checked', `${code(`ATMOSPHERIC_UNAVAILABLE / MARINE_UNAVAILABLE      source has no usable snapshot
+MISSING_ATMOSPHERIC_INPUTS / MISSING_MARINE_INPUTS  fewer than nine usable samples
+INVALID_MARINE_GRID                                 coordinates out of range
+MARINE_GRID_TOO_DISTANT                             grid cell beyond 25 km`)}`],
+  ],
+  7: [
+    ['Three layers of error handling', `<ul><li><b>${src('src/activity-forecast/activity-forecast.filter.ts')}</b> on the resolver maps domain errors to their codes: <code>BAD_USER_INPUT</code> with <code>field</code>, <code>GEOCODING_UNAVAILABLE</code>, <code>STORAGE_UNAVAILABLE</code>. As a filter it also keeps these expected outcomes out of the error log.</li>
+      <li><b>${src('src/activity-forecast/activity-forecast-error.mapper.ts', 76)}</b> is Apollo's <code>formatError</code> hook. It passes through only an allowlist of documented and Apollo request codes. Everything else becomes <code>INTERNAL_SERVER_ERROR</code> with a generic message.</li>
+      <li><b>${src('src/activity-forecast/activity-forecast-request.filter.ts')}</b> is global. It answers a body that does not parse, and an unknown route, with fixed text.</li></ul>
+      ${why('An allowlist fails closed. The first version let through any error that carried a code, and a probe showed a Prisma error leaking its SQL text.')}`],
+    ['Classifying database failures', `<p>${src('src/prisma/prisma.errors.ts')} treats Prisma connection and server errors (P1xxx), pool timeout (P2024), transaction errors (P2028) and write conflicts or deadlocks (P2034) as “storage unavailable”. Anything else, such as a constraint violation, is rethrown and surfaces as an internal error.</p>
+      ${why('“The database is down” is something a client can retry. A constraint violation is a bug and should be loud in the log, not disguised as an outage.')}`],
+    ['Logging', `<p>One shared <code>nestjs-pino</code> logger, injected into every class that logs, writing JSON lines. Per-request access lines are off. Each line logged during a request carries only the request ID, not the headers. Provider text is stripped of control characters and cut to 200 characters before it is logged.</p>`],
+  ],
+  8: [
+    ['The two seams that make tests deterministic', `<p><code>Clock</code> and <code>HTTP_FETCH</code> are the only sources of time and network. Tests replace them with a fixed clock and a fake Open-Meteo that answers all three APIs from fixtures (<code>test/support/fake-open-meteo.ts</code>).</p>
+      ${why('No test sleeps, calls the network or depends on today’s weather. Midnight, DST and a 24-hour-old snapshot are a clock value.')}`],
+    ['A throwaway database per run', `<p>Integration and E2E runs connect with an admin URL, create a <code>collinson_test_*</code> database, apply the checked-in migrations with <code>prisma migrate deploy</code> and drop it at the end.</p>
+      ${why('The migrations themselves are tested on every run, parallel runs cannot collide, and the development database is never touched. <code>prisma migrate reset</code> on a shared test database was rejected as destructive.')}`],
+    ['What each tier covers', `<ul><li><b>Unit</b> (358 tests today): scoring breakpoints, calendar and DST edges, adapters, mappers, error formatting.</li>
+      <li><b>Integration</b>: migrations, location and forecast persistence against PostgreSQL.</li>
+      <li><b>E2E</b> (64 tests today): the GraphQL contract over HTTP and the scenario matrix: midnight and DST, cold, warm and restart reuse, stale fallback, invalid replacements, partial and failed sources.</li></ul>
+      <p>To check the tests can fail, the source was broken on purpose in five ways and each break failed at least one scenario.</p>`],
+    ['CI pipeline', `<p>${src('.github/workflows/ci.yml')}, one job against a PostgreSQL 17 service container: install, format, lint, structure, typecheck, unit, integration, E2E, build, then migrate an empty database, boot the built app and query <code>health</code>.</p>
+      ${why('The last step proves the README path works on a clean machine, not only that the tests pass.')}`],
+  ],
+};
+
+const REF = [
+  { title: 'Technology picks', intro: 'Each choice, the reason for it, and what it costs. Versions are pinned exactly in package.json.', sections: [
+    ['NestJS 12', `<p>My choice (ADR 0001). Modules map to the three concerns, and dependency injection is what lets tests swap the clock and the HTTP fetch.</p>${cost('Heavier than a plain Apollo server for two queries. Nest 12 is ESM only, which is why Jest runs with <code>--experimental-vm-modules</code>.')}`],
+    ['Apollo Server 5, schema-first', `<p>The SDL files next to each module are the contract. Resolvers are bound to it by name.</p>${cost('Types are written twice, in SDL and TypeScript, and can drift. The E2E contract tests are the guard. Code-first, the AI’s first proposal, would have generated the SDL.')}`],
+    ['PostgreSQL 17', `<p>My choice over the AI’s SQLite draft (ADR 0002). It gives atomic upserts, JSONB, <code>SKIP LOCKED</code>, timestamps with time zone and real concurrent writers.</p>${cost('The reviewer needs Docker. Compose and a health-checked <code>db:up</code> script reduce that to one command.')}`],
+    ['Prisma 7 with the pg driver adapter', `<p>Checked-in SQL migrations and a typed client. 7.10.1 stable is pinned because the <code>latest</code> tag pointed at a v8 release candidate.</p>${cost('The purge needs raw SQL because Prisma has no <code>SKIP LOCKED</code>. Composite-key upserts are verbose.')}`],
+    ['JSONB for the hourly series', `<p>The series is read and replaced whole, so one document per snapshot fits.</p>${cost('Not queryable by hour and no history. See step 6.')}`],
+    ['Built-in fetch and Intl, no HTTP or date library', `<p>Node 24 has both. The runtime has 16 dependencies.</p>${cost('The timeout, retry and size limit are about 190 lines of our own code to maintain.')}`],
+    ['nestjs-pino', `<p>Structured JSON logs through one injected logger. A lint rule rejects Nest’s own <code>Logger</code> under <code>src/</code>.</p>`],
+    ['Jest 30, oxlint, dependency-cruiser, Prettier', `<p>Jest and oxlint match Nest 12’s own template; the AI first installed ESLint and switched after reading it. dependency-cruiser turns ADR 0006 into a CI check.</p>`],
+    ['Docker Compose and GitHub Actions', `<p>Compose runs only PostgreSQL. CI is one job with a PostgreSQL service container.</p>${cost('The app itself is not containerized. Hosted deployment is out of scope.')}`],
+    ['The npm override for GraphQL Tools', `<p>A scoped <code>overrides</code> entry under <code>@apollo/server</code> lifts three <code>@graphql-tools</code> packages to the versions <code>@nestjs/graphql</code> already pins. It removes a high advisory (GHSA-c4qx-w738-7hr3) that Apollo Server 5.5.2’s version cap kept in the tree.</p>${cost('It must be removed when Apollo lifts the cap. The engineering notes say when and how to check.')}`],
+  ] },
+  { title: 'Database schema and indexes', intro: 'Four tables. Every index and key has one query it serves.', sections: [
+    ['Every key and index, and the query behind it', `<div class="scroll"><table>
+      <tr><th>Table</th><th>Key or index</th><th>Serves</th></tr>
+      <tr><td>locations</td><td>PK (id)</td><td>Forecast by stored ID; upsert by provider ID</td></tr>
+      <tr><td>location_searches</td><td>PK (query, country_code)</td><td>Cache lookup and upsert by normalized search</td></tr>
+      <tr><td>location_searches</td><td>INDEX (expires_at)</td><td>Purge of expired searches, in expiry order</td></tr>
+      <tr><td>location_search_results</td><td>PK (query, country_code, position)</td><td>Candidates of one search in provider order</td></tr>
+      <tr><td>location_search_results</td><td>INDEX (location_id)</td><td>The foreign key to locations</td></tr>
+      <tr><td>forecast_snapshots</td><td>PK (location_id, source, schema_version)</td><td>The only snapshot read and the upsert</td></tr>
+    </table></div>`],
+    ['Column choices', `<ul><li><b>TEXT location ID.</b> Open-Meteo’s integer, kept as text so it stays opaque.</li>
+      <li><b><code>''</code> for no country filter.</b> NULL cannot be part of an upsert key in PostgreSQL.</li>
+      <li><b>TIMESTAMPTZ(3) everywhere.</b> Instants in UTC at millisecond precision, matching JavaScript dates.</li>
+      <li><b>A PostgreSQL enum for the source.</b> Only ATMOSPHERIC and MARINE can be stored.</li>
+      <li><b>Requested and returned coordinates.</b> Needed for the marine distance check without calling the provider again.</li>
+      <li><b>Units stored with the data.</b> A snapshot says what its numbers mean.</li></ul>`],
+    ['Migrations', `<p>Checked in under <code>prisma/migrations</code> and applied with <code>prisma migrate deploy</code>: a baseline, locations and search cache, the expiry index, forecast snapshots. <code>.gitattributes</code> forces LF because Prisma checksums each file and Windows checkouts would otherwise disagree.</p>`],
+    ['What is not there', `<ul><li>No index on <code>fetched_at</code>: nothing queries by age.</li>
+      <li>No GIN index on JSONB: nothing searches inside it.</li>
+      <li>No geo index (PostGIS GiST or <code>earthdistance</code>): coordinates are stored and passed to the provider, never searched. A place is found by its normalized name or its ID, and Open-Meteo geocoding does the spatial work. The 25 km marine check is a haversine in application code between two points that sit in the same snapshot row.</li>
+      <li>No scores table: scores are computed per request from stored weather.</li>
+      <li>No history: one snapshot per key, replaced on refresh.</li></ul>`],
+  ] },
+  { title: 'Trade-offs and weak spots', intro: 'Decisions with what was gained and given up, then the weak spots I know about and what would come next.', sections: [
+    ['Decisions at a glance', `<div class="scroll"><table>
+      <tr><th>Decision</th><th>Gained</th><th>Gave up</th></tr>
+      <tr><td>Refresh on request</td><td>No scheduler, no list of “hot” cities</td><td>The first request after six hours pays the provider latency</td></tr>
+      <tr><td>In-process refresh merge</td><td>One provider call per cold city, no extra infrastructure</td><td>Several instances can each call once</td></tr>
+      <tr><td>One JSONB snapshot per source</td><td>One read, one atomic write</td><td>History and SQL analytics</td></tr>
+      <tr><td>Store weather, compute scores</td><td>Scoring changes apply at once; pure scoring</td><td>Scores are recomputed on every request</td></tr>
+      <tr><td>Unavailable instead of estimated</td><td>No invented data</td><td>One missing hour removes a day</td></tr>
+      <tr><td>Candidates instead of a best guess</td><td>Never a wrong city</td><td>One more request for ambiguous names</td></tr>
+      <tr><td>Fixed error messages</td><td>No reflected input, no leaked internals</td><td>Less detail for a developer debugging a client</td></tr>
+      <tr><td>Schema-first</td><td>The SDL is the reviewed contract</td><td>Types written twice</td></tr>
+    </table></div>`],
+    ['Known weak spots', `<ul><li><b>Latency on a cold request.</b> Up to two 5-second attempts for geocoding, then the same for weather. No circuit breaker.</li>
+      <li><b>Tables that only grow.</b> Locations are never deleted. Snapshots of old schema versions and of cities nobody asks for again are never cleaned up.</li>
+      <li><b>Nearby places do not share weather.</b> Snapshots are keyed by location ID, so “Madrid” and “Madrid City Center” each fetch and store their own forecast, even when Open-Meteo answers both from the same grid cell. Keying snapshots by grid cell, or reusing one within a few kilometres, would cut provider calls, and that lookup is where a geo index would be needed.</li>
+      <li><b>Purge runs only on a cache miss.</b> An idle service keeps expired searches.</li>
+      <li><b>No cross-instance coordination.</b> Refresh merging and the formatter cache are per process.</li>
+      <li><b>Scoring is uncalibrated.</b> Weights, breakpoints and the 25 km limit are assumptions.</li>
+      <li><b>No authentication, rate limiting or query-cost limits.</b> Out of scope, and the first things to add before exposure.</li>
+      <li><b>Expired searches are not served during a geocoding outage.</b> Only stored IDs survive it.</li></ul>`],
+    ['Next steps, in order', `<ol><li>A PostgreSQL advisory lock around refresh, so several instances make one provider call.</li>
+      <li>Background refresh for recently requested locations, with an index on <code>fetched_at</code>.</li>
+      <li>Cleanup of old-version and long-unused snapshots.</li>
+      <li>Calibration of scoring against real conditions, shipped as <code>v2</code> next to <code>v1</code>.</li>
+      <li>Authentication, rate limiting and query depth limits at the edge.</li></ol>`],
+  ] },
+];
+
+/* ---------- diagrams (inline SVG, drawn from the theme tokens) ---------- */
+function box(x, y, w, title, lines = [], kind = '') {
+  const h = 30 + lines.length * 17 + (lines.length ? 6 : 0);
+  const cx = x + w / 2;
+  return { x, y, w, h, cx, bottom: y + h, right: x + w, midY: y + h / 2,
+    svg: `<rect class="d-box ${kind}" x="${x}" y="${y}" width="${w}" height="${h}" rx="7"/><text class="d-title" x="${cx}" y="${y + 20}">${esc(title)}</text>${lines.map((l, i) => `<text class="d-line" x="${cx}" y="${y + 40 + i * 17}">${esc(l)}</text>`).join('')}` };
+}
+function arrow(x1, y1, x2, y2, label, dx = 8, dy = -6) {
+  return `<line class="d-arrow" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#d-head)"/>${label ? `<text class="d-label" x="${(x1 + x2) / 2 + dx}" y="${(y1 + y2) / 2 + dy}">${esc(label)}</text>` : ''}`;
+}
+function diagram(width, height, title, parts, caption) {
+  return `<figure class="diagram"><div class="scroll"><svg viewBox="0 0 ${width} ${height}" style="width:100%;max-width:${width}px;min-width:${Math.round(width * 0.7)}px;height:auto" role="img" aria-label="${esc(title)}">
+    <defs><marker id="d-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-head" d="M0 0L10 5L0 10z"/></marker></defs>
+    ${parts.map((p) => (typeof p === 'string' ? p : p.svg)).join('')}</svg></div><figcaption>${caption}</figcaption></figure>`;
+}
+
+function architectureDiagram() {
+  const client = box(370, 10, 220, 'GraphQL client', ['POST /graphql']);
+  const entry = box(40, 100, 880, 'activity-forecast  (GraphQL entry point)', ['ActivityForecastResolver orchestrates · mapper shapes the SDL types · filters and formatError map errors to codes'], 'accent');
+  const location = box(40, 200, 270, 'location', ['LocationService', 'LocationRepository', 'OpenMeteoGeocodingClient', 'input validation and normalization']);
+  const forecast = box(345, 200, 270, 'forecast', ['ForecastService: reuse, refresh, fallback', 'ForecastRepository', 'Atmospheric and Marine clients', 'payload validation']);
+  const activity = box(650, 200, 270, 'activity  (pure)', ['scoreActivities', 'formulas and breakpoint tables', 'sampling and marine grid check', 'no I/O, no framework imports'], 'pure');
+  const infra = box(40, 350, 575, 'infrastructure', ['prisma  ·  http (JsonRequestService)  ·  clock  ·  config  ·  logger  ·  health']);
+  const calendar = box(650, 350, 270, 'calendar  (pure)', ['local date window and coverage check'], 'pure');
+  const pg = box(40, 450, 240, 'PostgreSQL 17', ['locations · searches · snapshots'], 'ext');
+  const meteo = box(315, 450, 300, 'Open-Meteo', ['geocoding · forecast · marine APIs'], 'ext');
+  return diagram(960, 520, 'Architecture', [client, entry, location, forecast, activity, infra, calendar, pg, meteo,
+    arrow(client.cx, client.bottom, client.cx, entry.y),
+    arrow(location.cx, entry.bottom, location.cx, location.y, 'resolve'),
+    arrow(forecast.cx, entry.bottom, forecast.cx, forecast.y, 'getWeather'),
+    arrow(activity.cx, entry.bottom, activity.cx, activity.y, 'scoreActivities'),
+    arrow(location.cx, location.bottom, location.cx, infra.y),
+    arrow(forecast.cx, forecast.bottom, forecast.cx, infra.y),
+    arrow(activity.cx, activity.bottom, activity.cx, calendar.y),
+    arrow(pg.cx, infra.bottom, pg.cx, pg.y, 'Prisma'),
+    arrow(meteo.cx, infra.bottom, meteo.cx, meteo.y, 'fetch, 5 s, 1 retry'),
+  ], 'One NestJS process. Arrows show who calls whom. The resolver and the forecast service also use <code>calendar</code>. Dashed boxes are pure code: CI fails if they import a framework, I/O or another domain’s service. Domains never import the GraphQL layer, and infrastructure never imports a domain.');
+}
+
+function requestFlowDiagram() {
+  const X = 330, W = 300, cx = X + W / 2;
+  const s1 = box(X, 10, W, '1. activityForecast(input)', ['exactly one of city or locationId'], 'accent');
+  const s2 = box(X, 100, W, '2. Freeze the request instant', ['Clock.now(), before any slow call']);
+  const s3 = box(X, 190, W, '3. Resolve the location', ['LocationService.resolve']);
+  const byId = box(20, 170, 270, 'By stored ID', ['one primary-key read', 'geocoding is not called']);
+  const byCity = box(20, 270, 270, 'By city', ['search cache, 24 h', 'else Open-Meteo geocoding,', 'then save in one transaction']);
+  const out = box(670, 190, 270, 'Returned without weather', ['no match: LocationNotFound', '2 to 5 matches: AmbiguousLocation'], 'warn');
+  const s4 = box(X, 300, W, '4. Derive the date window', ['tomorrow + 6 dates, location time zone']);
+  const s5 = box(X, 390, W, '5. Get weather, two sources in parallel', ['ForecastService.getWeather']);
+  const atm = box(250, 480, 220, 'ATMOSPHERIC', ['fresh snapshot? reuse', 'else refresh']);
+  const mar = box(490, 480, 220, 'MARINE', ['fresh snapshot? reuse', 'else refresh']);
+  const refresh = box(20, 470, 200, 'Refresh', ['join in-flight or fetch', 'validate, then upsert']);
+  const fail = box(740, 470, 200, 'Refresh failed', ['STALE if under 24 h old', 'else UNAVAILABLE'], 'warn');
+  const s6 = box(X, 590, W, '6. scoreActivities', ['pure: 4 activities x 7 dates, ranked']);
+  const s7 = box(X, 680, W, '7. ActivityForecast', ['days, source status, attribution'], 'good');
+  return diagram(960, 760, 'Request flow', [s1, s2, s3, byId, byCity, out, s4, s5, atm, mar, refresh, fail, s6, s7,
+    arrow(cx, s1.bottom, cx, s2.y), arrow(cx, s2.bottom, cx, s3.y),
+    arrow(X, s3.midY - 8, byId.right, byId.midY), arrow(X, s3.midY + 8, byCity.right, byCity.y + 20),
+    arrow(X + W, s3.midY, out.x, out.midY),
+    arrow(cx, s3.bottom, cx, s4.y, 'one location'), arrow(cx, s4.bottom, cx, s5.y),
+    arrow(cx - 60, s5.bottom, atm.cx, atm.y), arrow(cx + 60, s5.bottom, mar.cx, mar.y),
+    arrow(atm.x, atm.midY, refresh.right, refresh.midY), arrow(mar.right, mar.midY, fail.x, fail.midY),
+    arrow(atm.cx, atm.bottom, cx - 60, s6.y), arrow(mar.cx, mar.bottom, cx + 60, s6.y),
+    arrow(cx, s6.bottom, cx, s7.y),
+  ], 'The path of one <code>activityForecast</code> query. Each source refreshes and fails on its own, so a resolved location always gets four activities with seven dates. Only a database failure or a geocoding failure on a city search ends in a GraphQL error.');
+}
+
+function refreshFlowDiagram() {
+  const read = box(20, 20, 180, 'Read snapshot', ['by primary key']);
+  const fresh = box(250, 20, 230, 'Under 6 h old and', ['covers all 7 local dates?'], 'accent');
+  const served = box(740, 20, 200, 'FRESH', ['served from PostgreSQL'], 'good');
+  const join = box(250, 140, 230, 'Join the in-flight refresh', ['or start one, then re-read the row']);
+  const fetchBox = box(520, 140, 190, 'Fetch Open-Meteo', ['5 s timeout, 1 retry']);
+  const valid = box(750, 140, 190, 'Validate', ['payload and coverage']);
+  const saved = box(750, 260, 190, 'Upsert, then FRESH', ['one atomic statement'], 'good');
+  const old = box(480, 260, 230, 'Stored snapshot at most', ['24 h old and still covering?'], 'accent');
+  const stale = box(250, 260, 190, 'STALE', ['old snapshot + failure code'], 'warn');
+  const none = box(500, 370, 190, 'UNAVAILABLE', ['days get a typed code'], 'bad');
+  return diagram(960, 450, 'Snapshot reuse and refresh', [read, fresh, served, join, fetchBox, valid, saved, old, stale, none,
+    arrow(read.right, read.midY, fresh.x, fresh.midY),
+    arrow(fresh.right, fresh.midY, served.x, served.midY, 'yes', 0, -8),
+    arrow(fresh.cx, fresh.bottom, join.cx, join.y, 'no'),
+    arrow(join.right, join.midY, fetchBox.x, fetchBox.midY),
+    arrow(fetchBox.right, fetchBox.midY, valid.x, valid.midY),
+    arrow(valid.cx, valid.bottom, saved.cx, saved.y, 'valid'),
+    arrow(fetchBox.cx - 20, fetchBox.bottom, old.cx, old.y, 'failed', -52, -6),
+    arrow(old.x, old.midY, stale.right, stale.midY, 'yes', 0, -8),
+    arrow(old.cx, old.bottom, none.cx, none.y, 'no'),
+  ], 'What happens for one source on one request. A fetch that fails, or an answer that does not validate, never replaces the stored row. If the re-read finds that another refresh already replaced the row, it is reused without a fetch.');
+}
+
+function dbTable(x, y, name, rows) {
+  const w = 300, head = 28, rh = 20;
+  const h = head + rows.length * rh + 6;
+  const rowY = (i) => y + head + i * rh + 14;
+  return { x, y, w, h, right: x + w, bottom: y + h, cx: x + w / 2, rowY,
+    svg: `<rect class="d-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="7"/><path class="d-thead" d="M${x} ${y + head}V${y + 7}a7 7 0 0 1 7-7H${x + w - 7}a7 7 0 0 1 7 7V${y + head}z"/>
+      <text class="d-tname" x="${x + 10}" y="${y + 19}">${name}</text>
+      ${rows.map(([col, type, marks = ''], i) => `<text class="d-col${marks.includes('PK') ? ' pk' : ''}" x="${x + 10}" y="${rowY(i) + 4}">${col}</text><text class="d-type" x="${x + 160}" y="${rowY(i) + 4}">${type}</text><text class="d-mark" x="${x + w - 8}" y="${rowY(i) + 4}">${marks}</text>`).join('')}` };
+}
+const link = (points, label, lx, ly) => `<polyline class="d-arrow" points="${points.map((p) => p.join(',')).join(' ')}" marker-end="url(#d-head)"/>${label ? `<text class="d-label" x="${lx}" y="${ly}">${label}</text>` : ''}`;
+
+function schemaDiagram() {
+  const TS = 'TIMESTAMPTZ(3)';
+  const searches = dbTable(20, 20, 'location_searches', [
+    ['query', 'TEXT', 'PK'], ['country_code', 'TEXT', 'PK'], ['fetched_at', TS], ['expires_at', TS, 'IDX'],
+  ]);
+  const results = dbTable(20, 220, 'location_search_results', [
+    ['query', 'TEXT', 'PK FK'], ['country_code', 'TEXT', 'PK FK'], ['position', 'INTEGER', 'PK'], ['location_id', 'TEXT', 'FK IDX'],
+  ]);
+  const locations = dbTable(385, 20, 'locations', [
+    ['id', 'TEXT', 'PK'], ['name', 'TEXT'], ['country', 'TEXT'], ['region', 'TEXT null'], ['latitude', 'DOUBLE'], ['longitude', 'DOUBLE'],
+    ['timezone', 'TEXT'], ['created_at', TS], ['updated_at', TS],
+  ]);
+  const snapshots = dbTable(750, 20, 'forecast_snapshots', [
+    ['location_id', 'TEXT', 'PK FK'], ['source', 'weather_source', 'PK'], ['schema_version', 'INTEGER', 'PK'],
+    ['fetched_at', TS], ['coverage_start', TS], ['coverage_end', TS],
+    ['requested_latitude', 'DOUBLE'], ['requested_longitude', 'DOUBLE'], ['returned_latitude', 'DOUBLE'], ['returned_longitude', 'DOUBLE'],
+    ['timezone', 'TEXT'], ['units', 'JSONB'], ['hourly', 'JSONB'], ['created_at', TS], ['updated_at', TS],
+  ]);
+  const idY = locations.rowY(0);
+  return diagram(1070, 370, 'Database schema', [searches, results, locations, snapshots,
+    link([[results.cx, results.y], [results.cx, searches.bottom]], 'N : 1 · CASCADE', results.cx + 10, (results.y + searches.bottom) / 2 + 4),
+    link([[results.right, results.rowY(3)], [352, results.rowY(3)], [352, idY], [locations.x, idY]], 'N : 1 · RESTRICT', 330, results.rowY(3) + 22),
+    link([[snapshots.x, snapshots.rowY(0)], [locations.right, idY]], 'N : 1', locations.right + 14, idY - 8),
+    `<text class="d-label" x="${locations.right + 4}" y="${idY + 20}">CASCADE</text>`,
+  ], 'Arrows point from the foreign key to the row it references, with the delete rule. <b>PK</b> columns form the primary key, and composite keys span several rows. <b>IDX</b> marks the two secondary indexes: <code>expires_at</code> for the purge and <code>location_id</code> for the foreign key. <code>weather_source</code> is a PostgreSQL enum (ATMOSPHERIC, MARINE). A location has at most one snapshot per source and schema version, and a search has at most five result rows.');
+}
+
+/* One component curve, drawn to scale from the breakpoint table in activity-scoring.constants.ts. */
+function curve(x, y, title, bps, min, max, yLabels) {
+  const W = 220, H = 64, px = x + 26, py = y + 22;
+  const sx = (v) => px + ((v - min) / (max - min)) * W;
+  const sy = (s) => py + H - (s / 100) * H;
+  const pts = [[min, bps[0][1]], ...bps, [max, bps[bps.length - 1][1]]];
+  const [top, bottom] = yLabels ?? ['100', '0'];
+  return `<text class="d-ctitle" x="${px}" y="${y + 12}">${esc(title)}</text>
+    <line class="d-grid" x1="${px}" y1="${py}" x2="${px + W}" y2="${py}"/>
+    <line class="d-axis" x1="${px}" y1="${py}" x2="${px}" y2="${py + H}"/><line class="d-axis" x1="${px}" y1="${py + H}" x2="${px + W}" y2="${py + H}"/>
+    <text class="d-tick end" x="${px - 5}" y="${py + 4}">${top}</text><text class="d-tick end" x="${px - 5}" y="${py + H + 4}">${bottom}</text>
+    <polyline class="d-curve" points="${pts.map(([v, s]) => `${sx(v).toFixed(1)},${sy(s).toFixed(1)}`).join(' ')}"/>
+    ${bps.map(([v, s]) => `<circle class="d-dot" cx="${sx(v).toFixed(1)}" cy="${sy(s).toFixed(1)}" r="3.2"/><text class="d-tick mid" x="${sx(v).toFixed(1)}" y="${py + H + 15}">${String(v).replace('-', '−')}</text>`).join('')}`;
+}
+function scoringDiagram() {
+  const steps = [
+    ['9 local hours', 'per field, per date'], ['Aggregate', 'mean, sum, max or median'], ['Component 0 to 100', 'lines between breakpoints'],
+    ['Weighted sum', '50% + 30% + 20%'], ['Round, then rank', 'halves up; ties: earlier date'],
+  ].map(([t, l], i) => box(30 + i * 200, 10, 180, t, [l], i === 2 ? 'accent' : ''));
+  const rows = [
+    ['Outdoor sightseeing', ['best at 20 °C,', 'dry and calm'], [
+      ['50% · temperature, mean (°C)', [[0, 0], [20, 100], [35, 0]], -5, 40],
+      ['30% · precipitation, sum (mm)', [[0, 100], [8, 0]], 0, 10],
+      ['20% · wind, max (km/h)', [[10, 100], [40, 0]], 0, 50]]],
+    ['Skiing', ['0 when there is no', 'snow on the ground'], [
+      ['50% · snow depth, mean (m)', [[0, 0], [0.3, 100]], 0, 0.4],
+      ['30% · temperature, mean (°C)', [[-20, 0], [-5, 100], [5, 0]], -25, 10],
+      ['20% · wind, max (km/h)', [[10, 100], [45, 0]], 0, 55]]],
+    ['Surfing', ['needs a marine grid', 'point within 25 km'], [
+      ['50% · wave height, median (m)', [[0, 0], [1.2, 100], [3, 0]], 0, 3.5],
+      ['30% · wave period, median (s)', [[4, 0], [12, 100]], 0, 16],
+      ['20% · wind, max (km/h)', [[10, 100], [40, 0]], 0, 50]]],
+    ['Indoor sightseeing', ['rises as outdoor', 'conditions worsen'], [
+      ['from the unrounded outdoor score', [[0, 100], [100, 50]], 0, 100]]],
+  ];
+  const parts = [...steps, ...steps.slice(1).map((s, i) => arrow(steps[i].right, steps[i].midY, s.x, s.midY))];
+  rows.forEach(([name, notes, charts], r) => {
+    const y = 92 + r * 130;
+    parts.push(`<line class="d-grid solid" x1="20" y1="${y - 10}" x2="1020" y2="${y - 10}"/><text class="d-rname" x="20" y="${y + 38}">${name}</text>${notes.map((n, i) => `<text class="d-tick" x="20" y="${y + 58 + i * 16}">${n}</text>`).join('')}`);
+    charts.forEach(([title, bps, min, max], c) => parts.push(curve(200 + c * 280, y, title, bps, min, max)));
+  });
+  const iy = 92 + 3 * 130;
+  parts.push(`<text class="d-tname" x="506" y="${iy + 50}">indoor = 50 + 0.5 × (100 − outdoor)</text><text class="d-tick" x="506" y="${iy + 72}">outdoor 100 gives indoor 50 · outdoor 0 gives indoor 100</text><text class="d-tick" x="506" y="${iy + 90}">same three inputs as outdoor sightseeing</text>`);
+  return diagram(1040, 615, 'Scoring v1 formulas', parts, 'Scoring v1, drawn to scale from the breakpoint tables in <code>activity-scoring.constants.ts</code>. Each curve turns one aggregated measurement into a component score from 0 to 100; the numbers under each axis are the breakpoints, and values outside them keep the end score. The three components are combined with the weights shown. The weights and breakpoints are illustrative assumptions (ADR 0005), not fitted to data.');
+}
+
+const DIAGRAMS = { 0: architectureDiagram, 1: schemaDiagram, 4: scoringDiagram, 3: requestFlowDiagram, 5: refreshFlowDiagram };
+REF.unshift({ title: 'Architecture and request flow', intro: 'The five diagrams in one place: how the modules depend on each other, the path of one forecast query, how one weather source is reused or refreshed, the database schema and the scoring formulas.',
+  diagrams: [['Architecture', architectureDiagram], ['Request flow', requestFlowDiagram], ['Snapshot reuse and refresh', refreshFlowDiagram], ['Database schema', schemaDiagram], ['Scoring formulas', scoringDiagram]], sections: [] });
+REF.find((r) => r.title === 'Database schema and indexes').diagrams = [['Schema', schemaDiagram]];
+
+/* ---------- state ---------- */
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem('review.' + key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem('review.' + key, JSON.stringify(value)); } catch { /* optional */ } },
+};
+const storedStep = store.get('step', 0);
+let current = Number.isInteger(storedStep) && storedStep >= 0 ? Math.min(storedStep, STEPS.length - 1) : 0;
+const storedVisited = store.get('visited', []);
+const visited = new Set(Array.isArray(storedVisited) ? storedVisited.filter((i) => Number.isInteger(i) && i >= 0 && i < STEPS.length) : []);
+const results = new Map();   // step index -> { html }
+const logs = new Map();      // step index -> rows
+const $ = (id) => document.getElementById(id);
+const n = (v) => Number(v);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- API ---------- */
+async function api(path, body) {
+  const response = await fetch(path, body === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const answer = await response.json();
+  // The console server reports its own failures (PostgreSQL down, refused request) as { error }.
+  if (!response.ok) throw new Error(answer?.error ?? `HTTP ${response.status}`);
+  return answer;
+}
+async function refreshStatus() {
+  try {
+    const s = await api('/api/status');
+    $('st-service').textContent = s.service; $('dot-service').className = 'dot ' + (s.service === 'UP' ? 'up' : 'down');
+    $('st-db').textContent = s.database; $('dot-db').className = 'dot ' + (s.database === 'UP' ? 'up' : 'down');
+    $('st-endpoint').textContent = s.endpoint;
+  } catch {
+    $('st-service').textContent = '?'; $('st-db').textContent = '?';
+    $('dot-service').className = $('dot-db').className = 'dot down';
+    $('st-endpoint').textContent = 'The console server is not running.';
+  }
+}
+
+/* ---------- renderers ---------- */
+const weekday = (date) => new Date(date + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const ACTIVITY = { SKIING: 'Skiing', SURFING: 'Surfing', OUTDOOR_SIGHTSEEING: 'Outdoor sightseeing', INDOOR_SIGHTSEEING: 'Indoor sightseeing' };
+const freshClass = { FRESH: 'good', STALE: 'warn', UNAVAILABLE: 'bad' };
+
+function renderForecast(f) {
+  const loc = f.location;
+  const sources = f.sources.map((s) => `<span class="chip ${freshClass[s.freshness]}">${esc(s.source)} · ${esc(s.freshness)}${s.fetchedAt ? ' · fetched ' + esc(s.fetchedAt.slice(11, 23)) + ' UTC' : ''}${s.failureCode ? ' · ' + esc(s.failureCode) : ''}</span>`).join('');
+  const acts = f.activities.map((a) => `<div class="card act"><h3>${esc(ACTIVITY[a.activity] ?? a.activity)}</h3>${a.days.map((d) => d.availability === 'AVAILABLE'
+    ? `<div class="day"><span class="rank">#${n(d.rank)}</span><span>${esc(weekday(d.date))}</span><span class="bar"><i style="width:${n(d.score)}%"></i></span><span class="score">${n(d.score)}</span><span class="reason">${esc(d.reason)}</span></div>`
+    : `<div class="day na"><span class="rank">–</span><span>${esc(weekday(d.date))}</span><span><span class="chip">${esc(d.unavailableCode)}</span></span><span class="score">–</span><span class="reason">${esc(d.reason)}</span></div>`).join('')}</div>`).join('');
+  return `<div class="meta"><strong>${esc(loc.name)}</strong><span>${esc([loc.region, loc.country].filter(Boolean).join(', '))}</span>
+      <span class="chip accent">${esc(loc.timezone)}</span><span class="chip">${esc(f.startDate)} to ${esc(f.endDate)}</span>
+      <span class="chip">scoring ${esc(f.scoringVersion)}</span><span class="chip">id ${esc(loc.id)}</span></div>
+    <div class="meta">${sources}</div><div class="acts">${acts}</div>
+    <div class="empty" style="font-size:12px">${esc(f.attribution)}</div>`;
+}
+function renderCandidates(list, withButton) {
+  return `<div class="scroll"><table><tr><th>ID</th><th>Name</th><th>Region</th><th>Country</th><th>Time zone</th>${withButton ? '<th></th>' : ''}</tr>${list.map((c) =>
+    `<tr><td class="mono">${esc(c.id)}</td><td>${esc(c.name)}</td><td>${esc(c.region)}</td><td>${esc(c.country)}</td><td>${esc(c.timezone)}</td>${withButton ? `<td><button data-pick="${esc(c.id)}" data-name="${esc(c.name)}">Forecast this one</button></td>` : ''}</tr>`).join('')}</table></div>`;
+}
+function renderGraphql(answer) {
+  if (!answer.reachable) return { html: `<div class="meta"><span class="chip bad">No answer</span></div><p>${esc(answer.error)}</p>`, summary: 'service not reachable' };
+  const body = answer.body;
+  const head = `<span class="chip ${answer.status < 400 ? 'good' : 'warn'}">HTTP ${n(answer.status)}</span><span class="chip accent">${n(answer.ms)} ms</span>`;
+  let view = '', summary = '';
+  if (body?.errors) {
+    view = body.errors.map((e) => `<div class="meta"><span class="chip bad">${esc(e.extensions?.code ?? 'ERROR')}</span>${e.extensions && 'field' in e.extensions ? `<span class="chip">field: ${esc(e.extensions.field ?? 'null')}</span>` : ''}<span>${esc(e.message)}</span></div>`).join('');
+    summary = body.errors.map((e) => e.extensions?.code).join(', ');
+  } else if (body?.data?.health) {
+    const h = body.data.health;
+    view = `<div class="meta"><span class="chip ${h.service === 'UP' ? 'good' : 'bad'}">service ${esc(h.service)}</span><span class="chip ${h.database === 'UP' ? 'good' : 'bad'}">database ${esc(h.database)}</span></div>`;
+    summary = `service ${h.service}, database ${h.database}`;
+  } else if (body?.data?.locations) {
+    const list = body.data.locations;
+    view = list.length ? renderCandidates(list, false) : '<p class="empty">No matches (an empty list, not an error).</p>';
+    summary = `${list.length} candidates`;
+  } else if (body?.data?.activityForecast) {
+    const f = body.data.activityForecast;
+    if (f.__typename === 'ActivityForecast') {
+      view = renderForecast(f);
+      summary = f.location.name + ' · ' + f.sources.map((s) => `${s.source} ${s.freshness}${s.fetchedAt ? ' ' + s.fetchedAt.slice(11, 23) : ''}`).join(' · ');
+    } else if (f.__typename === 'AmbiguousLocation') {
+      view = `<div class="meta"><span class="chip warn">AmbiguousLocation</span><span>${f.candidates.length} candidates. Choose one to repeat the query by ID.</span></div>` + renderCandidates(f.candidates, true);
+      summary = `AmbiguousLocation, ${f.candidates.length} candidates`;
+    } else {
+      view = `<div class="meta"><span class="chip warn">${esc(f.__typename)}</span><span>${esc(f.message)}</span></div>`;
+      summary = f.__typename;
+    }
+  }
+  const raw = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
+  return { html: `<div class="meta">${head}</div>${view}<details><summary>Raw response</summary><pre>${esc(raw)}</pre></details>`, summary, status: answer.status, ms: answer.ms };
+}
+const stamp = (v) => (v ? String(v).replace('T', ' ').slice(0, 19) + 'Z' : '');
+function renderDb(db) {
+  const t = (title, cols, rows) => `<h3 style="font-size:14px">${title} <span class="empty">(${rows.length} most recent)</span></h3><div class="scroll"><table><tr>${cols.map((c) => `<th>${c[0]}</th>`).join('')}</tr>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${c[2] ?? ''}">${esc(c[1](r))}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">No rows</td></tr>`}</table></div>`;
+  return t('forecast_snapshots', [['Location', (r) => `${r.name} (${r.location_id})`], ['Source', (r) => r.source], ['Schema', (r) => 'v' + r.schema_version], ['Fetched at', (r) => stamp(r.fetched_at)], ['Covers from', (r) => stamp(r.coverage_start)], ['Covers to', (r) => stamp(r.coverage_end)], ['Grid point', (r) => `${r.returned_latitude.toFixed(2)}, ${r.returned_longitude.toFixed(2)}`], ['Hours', (r) => r.hours, 'num'], ['Size', (r) => (r.bytes / 1024).toFixed(1) + ' kB', 'num']], db.snapshots)
+    + t('location_searches', [['Query', (r) => r.query], ['Country', (r) => r.country_code || '(any)'], ['Results', (r) => r.results, 'num'], ['Fetched at', (r) => stamp(r.fetched_at)], ['Expires at', (r) => stamp(r.expires_at)]], db.searches)
+    + t('locations', [['ID', (r) => r.id], ['Name', (r) => r.name], ['Region', (r) => r.region], ['Country', (r) => r.country], ['Time zone', (r) => r.timezone], ['Stored at', (r) => stamp(r.created_at)]], db.locations);
+}
+
+/* ---------- running actions ---------- */
+function addLog(step, label, http, ms, summary) {
+  const rows = logs.get(step) ?? [];
+  rows.push({ at: new Date().toLocaleTimeString('en-GB'), label, http, ms, summary });
+  logs.set(step, rows);
+}
+function show(step, html) { results.set(step, html); if (step === current) paintResult(); }
+async function runGraphql(step, label, raw) {
+  const answer = await api('/api/graphql', { raw });
+  const out = renderGraphql(answer);
+  addLog(step, label, out.status ?? '–', out.ms ?? answer.ms, out.summary);
+  show(step, out.html);
+}
+async function runAction(step, action, button) {
+  button.disabled = true;
+  const before = button.textContent; button.textContent = 'Running…';
+  try {
+    if (action.raw !== undefined) await runGraphql(step, action.label, action.raw);
+    else if (action.db) { show(step, renderDb(await api('/api/db'))); addLog(step, action.label, '–', '–', 'read from PostgreSQL'); }
+    else if (action.reset) { const r = await api('/api/reset', { locationId: action.reset }); addLog(step, action.label, '–', '–', `${n(r.deleted)} snapshot rows deleted`); show(step, `<div class="meta"><span class="chip warn">${n(r.deleted)} rows deleted</span><span>The next request has to call Open-Meteo.</span></div>`); }
+    else if (action.run) { const r = await api('/api/run', { name: action.run }); addLog(step, action.label, '–', r.ms, `exit code ${n(r.exitCode)}`); show(step, `<div class="meta"><span class="chip ${r.exitCode === 0 ? 'good' : 'bad'}">${r.exitCode === 0 ? 'Passed' : 'Failed, exit code ' + r.exitCode}</span><span class="chip accent">${(r.ms / 1000).toFixed(1)} s</span><code>${esc(r.command)}</code></div><pre>${esc(r.output)}</pre>`); }
+  } catch (error) {
+    show(step, `<div class="meta"><span class="chip bad">Console server error</span><span>${esc(error.message)}. Check that <code>npm run review:console</code> is still running and that PostgreSQL is up with the migrations applied.</span></div>`);
+  } finally { button.disabled = false; button.textContent = before; refreshStatus(); }
+}
+
+/* ---------- painting ---------- */
+let refPage = null;   // index into REF while a reference page is open
+function paintSteps() {
+  const here = (i) => refPage === null && i === current;
+  $('steps').innerHTML = STEPS.map((s, i) => `<li class="${visited.has(i) && !here(i) ? 'done' : ''}"><button data-step="${i}" aria-current="${here(i)}"><span class="n">${visited.has(i) && !here(i) ? '✓' : i + 1}</span><span>${esc(s.title)}</span><span></span></button></li>`).join('');
+  $('refs').innerHTML = REF.map((r, i) => `<li><button data-ref="${i}" aria-current="${refPage === i}"><span class="n">${'ABCD'[i]}</span><span>${esc(r.title)}</span><span></span></button></li>`).join('');
+}
+function techCard(title, items, open) {
+  return `<div class="card tech"><div class="bar"><span class="label">${title}</span><span class="row"><button data-tech="open">Expand all</button><button data-tech="close">Collapse all</button></span></div>${items.map(([t, html]) => `<details ${open ? 'open' : ''}><summary>${esc(t)}</summary><div class="body">${html}</div></details>`).join('')}</div>`;
+}
+function paintRef() {
+  const r = REF[refPage];
+  paintSteps();
+  $('stage').innerHTML = `
+    <div class="head"><div><span class="label">Technical reference ${'ABCD'[refPage]}</span><h2>${esc(r.title)}</h2></div></div>
+    <p style="margin:0;color:var(--muted);max-width:75ch">${esc(r.intro)}</p>
+    ${(r.diagrams ?? []).map(([t, draw]) => `<div class="card"><span class="label">${t}</span>${draw()}</div>`).join('')}
+    ${r.sections.length ? techCard('Details', r.sections, true) : ''}
+    <div class="nav"><button data-back="1">← Back to step ${current + 1}: ${esc(STEPS[current].title)}</button><span></span></div>`;
+  document.querySelector('.main').scrollTop = 0;
+}
+function openRef(index) { refPage = index; paintRef(); }
+function paintResult() {
+  const box = $('result'); if (!box) return;
+  const rows = logs.get(current) ?? [];
+  box.innerHTML = (results.get(current) ?? '<p class="empty">Nothing run yet. Use the buttons above.</p>')
+    + (rows.length ? `<details open><summary>Run log</summary><div class="scroll"><table class="log"><tr><th>Time</th><th>Request</th><th>HTTP</th><th class="num">ms</th><th>Result</th></tr>${rows.map((r) => `<tr><td class="mono">${esc(r.at)}</td><td>${esc(r.label)}</td><td>${esc(r.http)}</td><td class="num">${esc(r.ms)}</td><td class="mono">${esc(r.summary)}</td></tr>`).join('')}</table></div></details>` : '');
+}
+function paint() {
+  const s = STEPS[current];
+  visited.add(current); store.set('visited', [...visited]); store.set('step', current);
+  paintSteps();
+  const list = (items) => `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+  $('stage').innerHTML = `
+    <div class="head"><div><span class="label">Step ${current + 1} of ${STEPS.length}</span><h2>${esc(s.title)}</h2></div></div>
+    <div class="brief"><span class="label" style="font-style:normal">From the brief</span><br>“${esc(s.brief)}”</div>
+    <div class="cols notes">
+      <div class="card say"><span class="label">What this shows</span>${list(s.say)}</div>
+      <div class="card"><span class="label">What to look at</span>${list(s.point)}</div>
+    </div>
+    ${DIAGRAMS[current] ? `<div class="card"><span class="label">Diagram</span>${DIAGRAMS[current]()}</div>` : ''}
+    ${s.extra ? `<div class="card">${s.extra}</div>` : ''}
+    ${s.actions.length ? `<div class="card"><span class="label">Run</span><div class="actions">${s.actions.map((a, i) => `<div class="action"><span><button class="${a.reset ? 'danger' : 'primary'}" data-action="${i}">${esc(a.label)}</button></span><small>${esc(a.note ?? '')}</small></div>`).join('')}</div></div>
+    <div class="card result" id="result" aria-live="polite"></div>` : ''}
+    ${TECH[current] ? techCard('Under the hood: code, motivation, trade-offs', TECH[current], false) : ''}
+    <div class="card qa notes"><span class="label">Questions you might have</span>${s.qa.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
+    <div class="nav"><button data-go="-1" ${current === 0 ? 'disabled' : ''}>← ${current ? esc(STEPS[current - 1].title) : 'Start'}</button><button class="primary" data-go="1" ${current === STEPS.length - 1 ? 'disabled' : ''}>${current < STEPS.length - 1 ? esc(STEPS[current + 1].title) : 'End'} →</button></div>`;
+  paintResult();
+  document.querySelector('.main').scrollTop = 0;
+}
+function go(index) { refPage = null; current = Math.max(0, Math.min(STEPS.length - 1, index)); paint(); }
+
+/* ---------- events ---------- */
+let disarm;
+$('stage').addEventListener('click', (event) => {
+  const b = event.target.closest('button'); if (!b) return;
+  if (b.dataset.tech) return b.closest('.tech').querySelectorAll('details').forEach((d) => { d.open = b.dataset.tech === 'open'; });
+  if (b.dataset.back) return go(current);
+  if (b.dataset.go) return go(current + Number(b.dataset.go));
+  if (b.dataset.pick) return runAction(current, { label: `By ID: ${b.dataset.name} (${b.dataset.pick})`, raw: forecast({ locationId: b.dataset.pick }) }, b);
+  if (b.dataset.action === undefined) return;
+  const action = STEPS[current].actions[Number(b.dataset.action)];
+  if (action.reset && b.dataset.armed !== 'yes') {   // in-page confirmation for the one destructive button
+    b.dataset.armed = 'yes'; b.textContent = 'Click again to delete';
+    clearTimeout(disarm);
+    disarm = setTimeout(() => { if (b.dataset.armed === 'yes') { b.dataset.armed = ''; b.textContent = action.label; } }, 4000);
+    return;
+  }
+  b.dataset.armed = '';
+  runAction(current, action, b).then(() => { if (action.reset) b.textContent = action.label; });
+});
+$('steps').addEventListener('click', (event) => { const b = event.target.closest('button[data-step]'); if (b) go(Number(b.dataset.step)); });
+$('refs').addEventListener('click', (event) => { const b = event.target.closest('button[data-ref]'); if (b) openRef(Number(b.dataset.ref)); });
+const step = (delta) => {
+  if (refPage !== null) return go(current);
+  const next = Math.max(0, Math.min(STEPS.length - 1, current + delta));
+  if (next !== current) go(next);
+};   // from a reference page, return to the step
+$('btn-prev').onclick = () => step(-1);
+$('btn-next').onclick = () => step(1);
+$('btn-status').onclick = refreshStatus;
+$('btn-clear').onclick = () => { results.clear(); logs.clear(); visited.clear(); go(current); };
+$('try').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const city = $('try-city').value.trim(); const cc = $('try-cc').value.trim().toUpperCase();
+  if (!city) return $('try-city').focus();
+  const input = cc ? { city, countryCode: cc } : { city };
+  const button = event.submitter ?? $('try').querySelector('button');
+  if (refPage !== null) go(current);
+  if (!STEPS[current].actions.length) go(3);
+  runAction(current, { label: `Try: ${city}${cc ? ', ' + cc : ''}`, raw: forecast(input) }, button);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.target.closest('input') || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.key === 'ArrowRight') step(1);
+  else if (event.key === 'ArrowLeft') step(-1);
+});
+
+paint(); refreshStatus(); setInterval(refreshStatus, 15000);
+</script>
+</body>
+</html>
