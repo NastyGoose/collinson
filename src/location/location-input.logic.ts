@@ -11,11 +11,11 @@ const FORMAT_CHARACTERS = /\p{Cf}/gu;
 const COUNTRY_CODE = /^[A-Za-z]{2}$/;
 
 export function normalizeCitySearch(city: string, countryCode?: string | null): CitySearch {
-  const label = collapseWhitespace(city.normalize('NFC'));
+  const name = collapseWhitespace(city.normalize('NFC'));
   // Lengths count Unicode code points, so a character outside the Basic Multilingual
   // Plane counts once, not as two UTF-16 units.
-  const length = Array.from(label).length;
-  const visibleLength = Array.from(label.replace(FORMAT_CHARACTERS, '')).length;
+  const length = Array.from(name).length;
+  const visibleLength = Array.from(name.replace(FORMAT_CHARACTERS, '')).length;
 
   if (visibleLength < CITY_MIN_LENGTH || length > CITY_MAX_LENGTH) {
     throw new InvalidLocationInputError(
@@ -23,13 +23,12 @@ export function normalizeCitySearch(city: string, countryCode?: string | null): 
       'city',
     );
   }
-  if (FORBIDDEN_CHARACTERS.test(label)) {
+  if (FORBIDDEN_CHARACTERS.test(name)) {
     throw new InvalidLocationInputError('city must not contain control characters.', 'city');
   }
 
   return {
-    query: collapseWhitespace(label.normalize('NFKC')).toLowerCase(),
-    label,
+    query: collapseWhitespace(name.normalize('NFKC')).toLowerCase(),
     countryCode: normalizeCountryCode(countryCode),
   };
 }

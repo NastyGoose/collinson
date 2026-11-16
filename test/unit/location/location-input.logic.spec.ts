@@ -13,15 +13,13 @@ describe('normalizeCitySearch', () => {
   it('trims the city, collapses inner whitespace and lowercases the query', () => {
     expect(normalizeCitySearch('  New \t  York  ')).toEqual({
       query: 'new york',
-      label: 'New York',
       countryCode: null,
     });
   });
 
-  it('keeps Unicode names and composes them to NFC', () => {
+  it('keeps Unicode names and composes them before lowercasing', () => {
     const search = normalizeCitySearch('São Paulo');
 
-    expect(search.label).toBe('São Paulo');
     expect(search.query).toBe('são paulo');
   });
 
@@ -32,7 +30,7 @@ describe('normalizeCitySearch', () => {
   });
 
   it('counts code points, so a two-character CJK name is valid', () => {
-    expect(normalizeCitySearch('東京').label).toBe('東京');
+    expect(normalizeCitySearch('東京').query).toBe('東京');
   });
 
   it.each([
@@ -49,21 +47,21 @@ describe('normalizeCitySearch', () => {
   });
 
   it('allows format characters inside a longer name', () => {
-    expect(normalizeCitySearch('Mehr‌abad').label).toBe('Mehr‌abad');
+    expect(normalizeCitySearch('Mehr‌abad').query).toBe('mehr‌abad');
   });
 
   it('accepts exactly 120 characters and rejects 121', () => {
-    expect(normalizeCitySearch('a'.repeat(120)).label).toHaveLength(120);
+    expect(normalizeCitySearch('a'.repeat(120)).query).toHaveLength(120);
     expect(inputError(() => normalizeCitySearch('a'.repeat(121))).field).toBe('city');
   });
 
   it('measures the 120-character limit in code points, not UTF-16 units', () => {
-    expect(Array.from(normalizeCitySearch('😀'.repeat(120)).label)).toHaveLength(120);
+    expect(Array.from(normalizeCitySearch('😀'.repeat(120)).query)).toHaveLength(120);
     expect(inputError(() => normalizeCitySearch('😀'.repeat(121))).field).toBe('city');
   });
 
   it('measures the length after trimming', () => {
-    expect(normalizeCitySearch(`   ${'a'.repeat(120)}   `).label).toHaveLength(120);
+    expect(normalizeCitySearch(`   ${'a'.repeat(120)}   `).query).toHaveLength(120);
   });
 
   it.each([
@@ -92,7 +90,7 @@ describe('parseLocationSelector', () => {
   it('selects a city search', () => {
     expect(parseLocationSelector({ city: ' Berlin ', countryCode: 'de' })).toEqual({
       kind: 'city',
-      search: { query: 'berlin', label: 'Berlin', countryCode: 'DE' },
+      search: { query: 'berlin', countryCode: 'DE' },
     });
   });
 
