@@ -5,4 +5,6 @@ export interface Env {
   DATABASE_URL: string;
   PORT: number;
   LOG_LEVEL: LogLevel;
+  /** Whether GraphQL introspection queries are allowed. */
+  GRAPHQL_INTROSPECTION: boolean;
 }

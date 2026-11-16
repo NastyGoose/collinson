@@ -35,9 +35,27 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     }
   }
 
+  // Explicit, not left to Apollo: on for local development and the contract tests,
+  // off when NODE_ENV is production unless GRAPHQL_INTROSPECTION turns it back on.
+  let introspection = raw.NODE_ENV !== 'production';
+  if (raw.GRAPHQL_INTROSPECTION !== undefined && raw.GRAPHQL_INTROSPECTION !== '') {
+    if (raw.GRAPHQL_INTROSPECTION === 'true' || raw.GRAPHQL_INTROSPECTION === 'false') {
+      introspection = raw.GRAPHQL_INTROSPECTION === 'true';
+    } else {
+      problems.push(
+        `GRAPHQL_INTROSPECTION must be true or false, got ${JSON.stringify(raw.GRAPHQL_INTROSPECTION)}.`,
+      );
+    }
+  }
+
   if (problems.length > 0) {
     throw new Error(`Invalid configuration:\n- ${problems.join('\n- ')}`);
   }
 
-  return { DATABASE_URL: databaseUrl, PORT: port, LOG_LEVEL: logLevel };
+  return {
+    DATABASE_URL: databaseUrl,
+    PORT: port,
+    LOG_LEVEL: logLevel,
+    GRAPHQL_INTROSPECTION: introspection,
+  };
 }
