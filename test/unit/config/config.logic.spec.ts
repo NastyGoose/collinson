@@ -3,8 +3,13 @@ import { validateEnv } from '../../../src/config/config.logic';
 const DATABASE_URL = 'postgresql://user:secret@localhost:5432/collinson';
 
 describe('validateEnv', () => {
-  it('accepts a PostgreSQL URL and defaults PORT to 3000 and LOG_LEVEL to info', () => {
-    expect(validateEnv({ DATABASE_URL })).toEqual({ DATABASE_URL, PORT: 3000, LOG_LEVEL: 'info' });
+  it('accepts a PostgreSQL URL and defaults PORT, LOG_LEVEL and introspection', () => {
+    expect(validateEnv({ DATABASE_URL })).toEqual({
+      DATABASE_URL,
+      PORT: 3000,
+      LOG_LEVEL: 'info',
+      GRAPHQL_INTROSPECTION: true,
+    });
   });
 
   it('parses PORT from its string form', () => {
@@ -37,4 +42,31 @@ describe('validateEnv', () => {
       );
     },
   );
+
+  it.each([
+    ['development', undefined, true],
+    ['test', undefined, true],
+    [undefined, '', true],
+    ['production', undefined, false],
+    ['production', '', false],
+    ['production', 'true', true],
+    ['development', 'false', false],
+  ])(
+    'with NODE_ENV=%s and GRAPHQL_INTROSPECTION=%j, introspection is %s',
+    (nodeEnv, introspection, expected) => {
+      const env = validateEnv({
+        DATABASE_URL,
+        NODE_ENV: nodeEnv,
+        GRAPHQL_INTROSPECTION: introspection,
+      });
+
+      expect(env.GRAPHQL_INTROSPECTION).toBe(expected);
+    },
+  );
+
+  it.each(['1', 'yes', 'TRUE'])('rejects GRAPHQL_INTROSPECTION=%s', (value) => {
+    expect(() => validateEnv({ DATABASE_URL, GRAPHQL_INTROSPECTION: value })).toThrow(
+      /GRAPHQL_INTROSPECTION must be true or false/,
+    );
+  });
 });
