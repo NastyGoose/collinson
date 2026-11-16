@@ -62,4 +62,6 @@ The refactor that applies this record is [ARC-54](https://linear.app/archiview/i
 
 `src/app.module.ts` and `src/main.ts` are the composition root. They may import any folder's wiring, including the `formatError` mapper and `config.logic.ts`; the folder-boundary rules do not cover them, while `no-circular` and `no-test-imports-in-src` still do. Two placements the rules above do not name: `isStorageFailure`, which classifies Prisma error codes, lives in `prisma.errors.ts`, because a `.logic` name would make the repositories' import a forbidden cross-folder one. The scoring v1 formulas are `activity-formula.logic.ts`, so that `activity-scoring.logic.ts` keeps the name this record gives the function the resolver calls. Every activity `.logic` file stays importable, as the module-boundary rules above allow.
 
+In this repository: [Structure rule](../../.claude/rules/code-structure.md) · [Boundary checker](../../.dependency-cruiser.cjs) · [Unit specs](../../test/unit) · [Logger module](../../src/logger/logger.module.ts)
+
 [ADR 0001](0001-nestjs-graphql-backend.md) · [ADR 0003](0003-local-window-and-forecast-refresh.md) · [ADR 0005](0005-deterministic-activity-scoring.md) · [ARC-52](https://linear.app/archiview/issue/ARC-52/dev-record-structure-rules-and-add-an-architect-agent-with-a-ci) ([#8](https://github.com/NastyGoose/collinson/pull/8))

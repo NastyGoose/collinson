@@ -1,6 +1,6 @@
 # Design evidence
 
-The specifications, Technical Design and spike notes were written in the author's Notion workspace, which reviewers may not be able to open. This page copies the evidence that the [ADRs](adr/README.md) cite, so that each decision can be checked from the repository alone. The values are unchanged from the workspace pages. Only the layout is shortened.
+The specifications, Technical Design and spike notes were written in the author's Notion workspace, which reviewers may not be able to open. This page copies the evidence that the [ADRs](adr/README.md) cite, so that each decision can be checked from the repository alone. The values are unchanged from the workspace pages; the wording is condensed.
 
 ## Storage options (SPEC-02, [ADR 0002](adr/0002-postgresql-prisma-persistence.md))
 
@@ -51,6 +51,6 @@ Each target date from 2026-11-14 to 2026-11-20 had local hours 00:00–23:00. Ea
 - Both coastal samples had complete wave data. Both inland samples returned a nearby grid point and a complete timeline with wave arrays that were entirely null. All four passed a 25 km distance check. Open-Meteo describes sea-cell selection as a preference.
 - Wave availability and timestamp coverage are therefore separate checks, and missing marine values affect surfing only.
 - The run supports keeping both coastal examples under a 25 km cap. It has no case with usable wave data beyond 25 km and does not calibrate the exact value. A grid point, even with finite wave values, says nothing about the distance to the coast, beach access or surf safety.
-- One run on four locations. DST changes, near-threshold cases with usable data and later forecast runs were not tested here. The automated tests cover them with fixtures ([`forecast-scenarios.e2e-spec.ts`](../test/e2e/forecast-scenarios.e2e-spec.ts), [`activity-marine-grid.logic.spec.ts`](../test/unit/activity/activity-marine-grid.logic.spec.ts)).
+- One run on four locations. DST changes, near-threshold cases with usable data and later forecast runs were not tested here. The automated tests cover them with fixtures: the Lisbon DST changes and repeated forecast runs in [`forecast-scenarios.e2e-spec.ts`](../test/e2e/forecast-scenarios.e2e-spec.ts) and [`calendar.logic.spec.ts`](../test/unit/calendar/calendar.logic.spec.ts), and the 25 km boundary in [`activity-marine-grid.logic.spec.ts`](../test/unit/activity/activity-marine-grid.logic.spec.ts).
 
 [Open-Meteo Marine API documentation](https://open-meteo.com/en/docs/marine-weather-api)
