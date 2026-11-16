@@ -25,4 +25,6 @@ Check required sources, then measurements, then the surfing grid. Within each ch
 
 The same input produces the same ranked dates. Weather snapshots can be used to recompute rankings after future scoring changes. Dry conditions at 20°C and 25 km/h produce 90 outdoors and 55 indoors. Treat the formula and its edge cases as part of the versioned contract.
 
-[Finalized ranking specification](https://app.notion.com/p/417a2e4a6cca81fda615c12d2ea79b4e) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)
+In this repository: [Formulas](../../src/activity/activity-formula.logic.ts) · [Breakpoints](../../src/activity/activity-scoring.constants.ts) · [Sample hours and version](../../src/activity/activity.constants.ts) · [Scoring and ranking](../../src/activity/activity-scoring.logic.ts) · [Unit tests](../../test/unit/activity)
+
+Author's workspace (may need access): [Finalized ranking specification](https://app.notion.com/p/417a2e4a6cca81fda615c12d2ea79b4e) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)

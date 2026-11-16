@@ -23,4 +23,6 @@ Persist a structurally valid marine snapshot with required timestamp coverage ev
 
 The 25 km cap is a v1 model-offset assumption. Beach proximity, access and surf safety are outside the evidence the model provides. A fresh marine snapshot can yield unavailable surfing days while atmospheric activities remain usable. Use deterministic fixtures for all-null marine data, partial samples and the cutoff boundary.
 
-[ARC-43 observations and reproducible requests](https://app.notion.com/p/417a2e4a6cca818787d7f8bd779b2f08) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)
+In this repository: [ARC-43 observations and reproducible requests](../design-evidence.md#marine-coverage-arc-43-adr-0004) · [Wave-value check](../../src/activity/activity-samples.logic.ts) · [Grid check](../../src/activity/activity-marine-grid.logic.ts) · [25 km cap](../../src/activity/activity.constants.ts)
+
+Author's workspace (may need access): [ARC-43 observations](https://app.notion.com/p/417a2e4a6cca818787d7f8bd779b2f08) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)

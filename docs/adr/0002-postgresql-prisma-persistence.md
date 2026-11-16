@@ -18,4 +18,6 @@ Use PostgreSQL, Prisma Client and checked-in Prisma Migrate migrations. Run Post
 
 Relational keys support lookups and uniqueness. JSONB keeps a normalized hourly snapshot together and preserves enough input to recompute scores. PostgreSQL adds a local service and migration setup relative to SQLite. Integration and E2E tests use an isolated PostgreSQL database with the same checked-in migrations.
 
-[Storage options and decision](https://app.notion.com/p/417a2e4a6cca81c7b5a8ff5e9cb63aa8) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)
+In this repository: [Storage options](../design-evidence.md#storage-options-spec-02-adr-0002) · [Prisma schema](../../prisma/schema.prisma) · [Migrations](../../prisma/migrations)
+
+Author's workspace (may need access): [Storage options and decision](https://app.notion.com/p/417a2e4a6cca81c7b5a8ff5e9cb63aa8) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)

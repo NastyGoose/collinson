@@ -222,7 +222,8 @@ Weather and geocoding data come from [Open-Meteo](https://open-meteo.com/) ([for
 
 - [Engineering notes](docs/engineering-notes.md): dated decisions, AI involvement, changes of mind and scope cuts.
 - [Architecture decision records](docs/adr/README.md): accepted decisions and their rationale.
+- [Design evidence](docs/design-evidence.md): the storage options and the marine-data spike that the ADRs cite, copied from the workspace.
 - [Initial specification draft](docs/assessment-specifications.md): the first draft, kept for history and superseded where the decisions differ.
 - [CLAUDE.md](CLAUDE.md) and [Claude skills](.claude/README.md): the instructions, task workflow, code-structure rule and `architect` agent used with Claude Code.
 
-The finalized specifications, Technical Design and tickets were kept in the author's Notion and Linear workspaces. Links to them may require access, so the ADRs and engineering notes are written to stand on their own.
+The finalized specifications, Technical Design and tickets were kept in the author's Notion and Linear workspaces. Links to them may require access, so the ADRs, the design evidence and the engineering notes are written to stand on their own. Each ADR lists the files in this repository that carry its decision before any workspace link, and each ticket in the engineering notes links its pull request.

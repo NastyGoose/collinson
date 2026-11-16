@@ -23,4 +23,6 @@ Stored forecasts survive restart and warm reads avoid provider calls. Misses can
 - 2026-11-14 (ARC-46), Decision: a timeout counts as a transient failure and is retried once, as for geocoding. The follow-up refresh applies to a waiter that joined any other date window, older or newer, only when that refresh succeeded or failed on coverage, and stays bounded to one. A provider answer over 2 MiB is an invalid payload and is not retried.
 - 2026-11-15 (ARC-50), Decision: the 2 MiB limit applies to successful answers only. An error answer keeps its own failure code and retry rule whatever its size, so a 5xx answer over 2 MiB is retried once; its body is read only in part, for the log.
 
-[Finalized persistence specification](https://app.notion.com/p/417a2e4a6cca81018448cfe1a6b90004) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)
+In this repository: [Date window and coverage](../../src/calendar/calendar.logic.ts) · [Refresh and reuse](../../src/forecast/forecast.service.ts) · [Scenario tests](../../test/e2e/forecast-scenarios.e2e-spec.ts)
+
+Author's workspace (may need access): [Finalized persistence specification](https://app.notion.com/p/417a2e4a6cca81018448cfe1a6b90004) · [Technical Design](https://app.notion.com/p/417a2e4a6cca81949f4df8105ae4f9d8)
