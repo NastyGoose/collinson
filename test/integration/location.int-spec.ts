@@ -165,7 +165,7 @@ describe('LocationService with PostgreSQL', () => {
     it('returns a typed not-found for a genuine no-match', async () => {
       await expect(service.resolve({ city: 'Zzqxqxq' })).resolves.toEqual({
         kind: 'not_found',
-        message: 'No location matches "Zzqxqxq".',
+        message: 'No location matches the city search.',
       });
     });
 
