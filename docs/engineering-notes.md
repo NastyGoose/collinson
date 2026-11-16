@@ -194,8 +194,9 @@ For every ticket the AI followed the [`implement-task`](../.claude/skills/implem
 ### 2026-11-16 — Publication readiness (ARC-60)
 
 - **Question:** what does a reviewer without access to the author's Notion and Linear see? On `main` each ADR cited only workspace pages, so its evidence could not be checked from the repository. **Decision:** copy the evidence the ADRs relied on, the storage options and the ARC-43 marine spike, into [design evidence](design-evidence.md). Each ADR now lists the files that carry its decision first and the workspace links after them, labelled as possibly needing access. Tickets in these notes and in ADR 0006 link their pull requests. **Rejected for now:** exporting the full specifications and Technical Design into the repository. The ADRs, the SDL and these notes already carry the decisions, and a second copy would drift.
-- **Check:** from a fresh clone of the branch, all 70 relative links and heading anchors resolve, and every public link answers 200. A deliberately broken path and anchor were flagged. The pull request links answer 404 until the repository is public.
-- **Open, with the author:** commit metadata, whether the workspace links stay, the wording of the attribution in ADRs 0001 and 0002, and the license. Each is recorded here once decided. Changing visibility, any history rewrite and notifying the assessor are separate actions.
+- **Check:** from a fresh clone of the branch, all 71 relative links and heading anchors resolve, and every public link answers 200. A deliberately broken path and anchor were flagged. The pull request links answer 404 until the repository is public.
+- **Decision (author):** the commit history stays as it is, author metadata included. No rewrite is planned, so the commit SHAs that the PR notes pin stay valid.
+- **Open, with the author:** whether the workspace links stay, the wording of the attribution in ADRs 0001 and 0002, and the license. Each is recorded here once decided. Changing visibility, any history rewrite and notifying the assessor are separate actions.
 
 ## Scope cuts
 
