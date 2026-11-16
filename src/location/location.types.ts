@@ -21,8 +21,6 @@ export interface CitySearch {
    * every input that shares a cache entry asking the provider the same question.
    */
   query: string;
-  /** The city as given, trimmed and NFC-normalized, for messages. */
-  label: string;
   /** Uppercase ISO 3166-1 alpha-2 filter, or null for no filter. */
   countryCode: string | null;
 }
