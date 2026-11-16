@@ -261,8 +261,8 @@ describe('activity forecast GraphQL contract (e2e)', () => {
   });
 
   it.each([
-    ['an unknown city', { city: 'Atlantis' }, 'No location matches "Atlantis".'],
-    ['an unknown stored ID', { locationId: '999' }, 'No stored location has ID "999".'],
+    ['an unknown city', { city: 'Atlantis' }, 'No location matches the city search.'],
+    ['an unknown stored ID', { locationId: '999' }, 'No stored location has the given ID.'],
   ])('returns a typed not-found result for %s', async (_name, input, message) => {
     await expect(forecast(input)).resolves.toEqual({ __typename: 'LocationNotFound', message });
   });

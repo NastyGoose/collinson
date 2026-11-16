@@ -1,6 +1,13 @@
 /** Most candidates a city search exposes (SPEC-01). */
 export const MAX_CANDIDATES = 5;
 
+/**
+ * LocationNotFound messages. Fixed text: they never echo the submitted city,
+ * country filter or ID, so a client cannot reflect its own input through them (ARC-59).
+ */
+export const CITY_NOT_FOUND_MESSAGE = 'No location matches the city search.';
+export const LOCATION_ID_NOT_FOUND_MESSAGE = 'No stored location has the given ID.';
+
 export const CITY_MIN_LENGTH = 2;
 export const CITY_MAX_LENGTH = 120;
 

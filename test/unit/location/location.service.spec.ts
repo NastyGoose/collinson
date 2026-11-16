@@ -64,7 +64,7 @@ describe('LocationService', () => {
     [
       'no candidate is not-found',
       [],
-      { kind: 'not_found', message: 'No location matches "Nowhere" in US.' },
+      { kind: 'not_found', message: 'No location matches the city search.' },
     ],
   ])('%s', async (_label, candidates, expected) => {
     const { service, geocoding } = await createService();
@@ -177,13 +177,14 @@ describe('LocationService', () => {
     expect(geocoding.search).not.toHaveBeenCalled();
   });
 
-  it('names a well-formed unknown ID in the not-found message', async () => {
-    const { service } = await createService();
+  it('answers not-found for a well-formed unknown ID without echoing it', async () => {
+    const { service, repository } = await createService();
 
     await expect(service.resolve({ locationId: '999999999' })).resolves.toEqual({
       kind: 'not_found',
-      message: 'No stored location has ID "999999999".',
+      message: 'No stored location has the given ID.',
     });
+    expect(repository.findLocation).toHaveBeenCalledWith('999999999');
   });
 
   it.each(['abc', '0', '007', '1.5', '12345678901234567', '9'.repeat(200)])(

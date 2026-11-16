@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { Clock } from '../clock/clock.service';
-import { SEARCH_EMPTY_TTL_MS, SEARCH_MATCH_TTL_MS } from './location.constants';
+import {
+  CITY_NOT_FOUND_MESSAGE,
+  LOCATION_ID_NOT_FOUND_MESSAGE,
+  SEARCH_EMPTY_TTL_MS,
+  SEARCH_MATCH_TTL_MS,
+} from './location.constants';
 import type {
   CitySearch,
   Location,
@@ -51,13 +56,13 @@ export class LocationService {
         ? await this.repository.findLocation(selector.locationId)
         : null;
       return location === null
-        ? { kind: 'not_found', message: unknownIdMessage(selector.locationId) }
+        ? { kind: 'not_found', message: LOCATION_ID_NOT_FOUND_MESSAGE }
         : { kind: 'resolved', location };
     }
 
     const candidates = await this.searchNormalized(selector.search);
     if (candidates.length === 0) {
-      return { kind: 'not_found', message: notFoundMessage(selector.search) };
+      return { kind: 'not_found', message: CITY_NOT_FOUND_MESSAGE };
     }
     if (candidates.length === 1) {
       return { kind: 'resolved', location: candidates[0] };
@@ -104,16 +109,4 @@ export class LocationService {
       this.logger.warn(`Expired location searches were not purged: ${String(error)}`);
     }
   }
-}
-
-function unknownIdMessage(locationId: string): string {
-  // Echo only IDs of the provider's form; anything else may be arbitrarily long.
-  return CANONICAL_LOCATION_ID.test(locationId)
-    ? `No stored location has ID "${locationId}".`
-    : 'No stored location has the given ID.';
-}
-
-function notFoundMessage(search: CitySearch): string {
-  const country = search.countryCode === null ? '' : ` in ${search.countryCode}`;
-  return `No location matches "${search.label}"${country}.`;
 }
