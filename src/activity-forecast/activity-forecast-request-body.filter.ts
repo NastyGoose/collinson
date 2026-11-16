@@ -23,27 +23,27 @@ const DEFAULT_BODY_ERROR_MESSAGE = 'The request body could not be read.';
  * BAD_REQUEST code Apollo uses for its own malformed-request errors (ARC-59).
  *
  * Every other exception keeps Nest's default handling: over HTTP through
- * BaseExceptionFilter, and inside a resolver it is returned unchanged for the
- * GraphQL error pipeline (`formatGraphQLError`).
+ * BaseExceptionFilter. Inside a resolver the filter returns nothing, which Nest
+ * reads as "not handled", so its external handler still logs and rethrows the
+ * exception for the GraphQL error pipeline (`formatGraphQLError`).
  */
 @Catch(HttpException)
 export class RequestBodyErrorFilter extends BaseExceptionFilter<HttpException> {
-  override catch(exception: HttpException, host: ArgumentsHost): HttpException | undefined {
+  override catch(exception: HttpException, host: ArgumentsHost): void {
     if (host.getType() !== 'http') {
-      return exception;
+      return;
     }
     const bodyErrorType = bodyParserErrorType(exception.cause);
     const adapter = this.httpAdapterHost?.httpAdapter;
     if (bodyErrorType === null || adapter === undefined) {
       super.catch(exception, host);
-      return undefined;
+      return;
     }
     const error: GraphQLFormattedError = {
       message: BODY_ERROR_MESSAGES[bodyErrorType] ?? DEFAULT_BODY_ERROR_MESSAGE,
       extensions: { code: 'BAD_REQUEST' },
     };
     adapter.reply(host.switchToHttp().getResponse(), { errors: [error] }, exception.getStatus());
-    return undefined;
   }
 }
 

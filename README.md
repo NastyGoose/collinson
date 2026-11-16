@@ -144,7 +144,7 @@ Errors carry a stable `extensions.code`:
 - `GEOCODING_UNAVAILABLE` when a city search needs Open-Meteo geocoding and it fails.
 - `STORAGE_UNAVAILABLE` when PostgreSQL cannot serve the request.
 
-GraphQL's own request errors keep their codes, such as `GRAPHQL_VALIDATION_FAILED`. A body that is not valid JSON gets HTTP 400 with `{"errors":[{"message":"The request body is not valid JSON.","extensions":{"code":"BAD_REQUEST"}}]}`. Error messages and `LocationNotFound` never repeat the submitted city, ID or variable values, parser output or provider text. Validation errors still quote the query itself. Any other failure returns `INTERNAL_SERVER_ERROR` with a generic message, and the details go only to the server log.
+GraphQL's own request errors keep their codes, such as `GRAPHQL_VALIDATION_FAILED`. A body that is not valid JSON gets HTTP 400 with `{"errors":[{"message":"The request body is not valid JSON.","extensions":{"code":"BAD_REQUEST"}}]}`. Error messages and `LocationNotFound` never repeat the submitted city, ID or variable values, the JSON parser's output or provider text. Parse and validation errors still quote the query document itself, and an unknown `operationName` is repeated back. Any other failure returns `INTERNAL_SERVER_ERROR` with a generic message, and the details go only to the server log.
 
 ## Tests and checks
 

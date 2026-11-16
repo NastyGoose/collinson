@@ -11,7 +11,7 @@ import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-hos
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { RequestBodyErrorFilter } from '../../../src/activity-forecast/activity-forecast-request.filter';
+import { RequestBodyErrorFilter } from '../../../src/activity-forecast/activity-forecast-request-body.filter';
 
 /** Benign marker: no response may contain it. */
 const SENTINEL = 'ARC59_SENTINEL_BODY';
@@ -125,11 +125,13 @@ describe('RequestBodyErrorFilter', () => {
     });
   });
 
-  it('returns an exception raised in a GraphQL resolver unchanged', () => {
-    const exception = new BadRequestException('From a resolver.');
+  it("leaves an exception raised in a GraphQL resolver to Nest's default handling", () => {
     const host = new ExecutionContextHost([]);
     host.setType('graphql');
 
-    expect(new RequestBodyErrorFilter().catch(exception, host)).toBe(exception);
+    // Undefined means "not handled": Nest's external handler logs and rethrows it.
+    expect(
+      new RequestBodyErrorFilter().catch(new BadRequestException('From a resolver.'), host),
+    ).toBeUndefined();
   });
 });
