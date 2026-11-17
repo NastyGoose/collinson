@@ -40,6 +40,18 @@ curl -s http://localhost:3000/graphql -H 'content-type: application/json' --data
 
 The answer is `{"data":{"health":{"service":"UP","database":"UP"}}}`. `database` reads `DOWN` while PostgreSQL is unreachable. Stop the app with Ctrl+C and PostgreSQL with `npm run db:down`. The data stays in the `collinson_postgres-data` volume.
 
+### Optional: review console
+
+The service has no front end. For reviewers there is an optional local page that walks through the service step by step. It sends the same GraphQL requests as the files in `examples/` to the running service and shows the answers, with diagrams and notes on the decisions and trade-offs behind each step. It lives in [`tools/review-console/`](tools/review-console/), outside `src/`, and adds no dependency.
+
+With the service running (`npm run start:prod`), in a second terminal:
+
+```bash
+npm run review:console     # then open http://localhost:4000
+```
+
+Set `REVIEW_CONSOLE_PORT` to use another port. The console listens on localhost only and refuses requests that do not come from its own page. Besides forwarding requests, it reads a few rows from PostgreSQL to show what is stored, and it can start `npm test`, `npm run test:e2e` and `npm run lint:structure`. One button, "Clear stored weather for Nazaré", deletes that location's rows from `forecast_snapshots` in your local database to show a cold request, and asks for a second click first. Everything it shows can also be checked with the curl commands in [GraphQL examples](#graphql-examples).
+
 ## GraphQL examples
 
 Opening http://localhost:3000/graphql in a browser shows GraphiQL, where you can paste the queries below. The schema is [`src/activity-forecast/activity-forecast.graphql`](src/activity-forecast/activity-forecast.graphql). The request bodies are in [`examples/`](examples/) and can be sent as they are:
@@ -145,18 +157,6 @@ Errors carry a stable `extensions.code`:
 - `STORAGE_UNAVAILABLE` when PostgreSQL cannot serve the request.
 
 GraphQL's own request errors keep their codes, such as `GRAPHQL_VALIDATION_FAILED`. A body that is not valid JSON gets HTTP 400 with `{"errors":[{"message":"The request body is not valid JSON.","extensions":{"code":"BAD_REQUEST"}}]}`. Error messages and `LocationNotFound` never repeat the submitted city, ID or variable values, the request body, the requested path or provider text. Parse errors, validation errors on a value written in the query and an unknown `operationName` keep their codes, and their locations where they have any, but get fixed messages. Validation errors about names, such as `Cannot query field "x" on type "Query".` or an undeclared input field, keep their message. Any other failure returns `INTERNAL_SERVER_ERROR` with a generic message, and the details go only to the server log.
-
-## Optional: review console
-
-The service has no front end. For reviewers there is an optional local page that walks through the service step by step. It sends the same GraphQL requests as the files in `examples/` to the running service and shows the answers, with diagrams and notes on the decisions and trade-offs behind each step. It lives in [`tools/review-console/`](tools/review-console/), outside `src/`, and adds no dependency.
-
-With the service running (`npm run start:prod`), in a second terminal:
-
-```bash
-npm run review:console     # then open http://localhost:4000
-```
-
-Set `REVIEW_CONSOLE_PORT` to use another port. The console listens on localhost only and refuses requests that do not come from its own page. Besides forwarding requests, it reads a few rows from PostgreSQL to show what is stored, and it can start `npm test`, `npm run test:e2e` and `npm run lint:structure`. One button, "Clear stored weather for Nazaré", deletes that location's rows from `forecast_snapshots` in your local database to show a cold request, and asks for a second click first. Everything it shows can also be checked with the curl commands above.
 
 ## Tests and checks
 
